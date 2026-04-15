@@ -22,8 +22,10 @@ const RANKING_DESSERTS = [
 ];
 
 export default function Index() {
+  const router = useRouter();
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
 
       {/* Header */}
       <View style={styles.header}>
@@ -58,7 +60,7 @@ export default function Index() {
             <Text style={styles.todayTitle}>記錄今日食譜！</Text>
             <Text style={styles.subText}>Record today's recipe!</Text>
 
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/record')}>
               <Text style={styles.buttonText}>馬上建立 →</Text>
             </TouchableOpacity>
           </View>
@@ -70,11 +72,15 @@ export default function Index() {
         <Text style={styles.sectionTitle}>近期出爐</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {RECENT_DESSERTS.map((item) => (
-            <View key={item.id} style={styles.card}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+            >
               <Image source={item.img} style={styles.cardImg} />
               <Text style={styles.cardText}>{item.name}</Text>
-              <Text style={[styles.cardText, {fontSize: 10, color: '#999'}]}>{item.date}</Text>
-            </View>
+              <Text style={[styles.cardText, { fontSize: 10, color: '#999' }]}>{item.date}</Text>
+            </TouchableOpacity>
           ))}
         </ScrollView>
 
@@ -82,11 +88,15 @@ export default function Index() {
         <Text style={styles.sectionTitle}>排行榜推薦</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {RANKING_DESSERTS.map((item) => (
-            <View key={item.id} style={styles.card}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+            >
               <Image source={item.img} style={styles.cardImg} />
               <Text style={styles.cardText}>{item.name}</Text>
-              <Text style={[styles.cardText, {fontSize: 10, color: '#999'}]}>{item.date}</Text>
-            </View>
+              <Text style={[styles.cardText, { fontSize: 10, color: '#999' }]}>{item.date}</Text>
+            </TouchableOpacity>
           ))}
         </ScrollView>
 
@@ -95,41 +105,35 @@ export default function Index() {
       {/* 底部導航 */}
       <View style={styles.navContainer}>
         <View style={styles.bottomNav}>
-          <View style={styles.navItem}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/')}>
             <Image source={require('../img/home.png')} style={styles.icon} />
             <Text style={styles.navText}>首頁</Text>
-          </View>
-          <View style={styles.navItem}>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
             <Image source={require('../img/favorite.png')} style={styles.icon} />
             <Text style={styles.navText}>收藏</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* 中間留空位給凸出來的按鈕 */}
           <View style={{ width: 80 }} />
 
           {/* 右側兩個按鈕 */}
-          <View style={styles.navItem}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/diary')}>
             <Image source={require('../img/gallery.png')} style={styles.icon} />
             <Text style={styles.navText}>日誌本</Text>
-          </View>
-          <View style={styles.navItem}>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
             <Image source={require('../img/member.png')} style={styles.icon} />
             <Text style={styles.navText}>我的</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* 真正的中間大按鈕：使用絕對定位 */}
-        <TouchableOpacity style={styles.plusButton}>
-          <Text style={{
-            color: 'white',
-            fontSize: 37,
-            fontWeight: '300', // 幼一點的線條比較優雅
-            lineHeight: 45,    // 調整這個數值可以精準控制垂直位置
-            textAlign: 'center'
-          }}>＋</Text>
+        <TouchableOpacity style={styles.plusButton} onPress={() => router.push('/record')}>
+          <Text style={styles.plusButtonText}>+</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -137,9 +141,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.light,
-    paddingTop: 30,
+    paddingTop: 10,
   },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -147,7 +150,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: 'center',
   },
-
   title: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -164,7 +166,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '92%',
   },
-
   addCreator: {
     width: 60,
     height: 60,
@@ -176,12 +177,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#693F27',
   },
-
   creatorCard: {
     alignItems: 'center',
     marginRight: 10,
   },
-
   creatorImg: {
     width: 60,
     height: 60,
@@ -189,12 +188,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 5,
   },
-
   creatorText: {
     fontSize: 12,
     color: '#693F27',
   },
-
   todayCard: {
     backgroundColor: colors.mid,
     margin: 15,
@@ -203,39 +200,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-
   todayTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.text,
   },
-
   subText: {
     fontSize: 12,
-    marginVertical: 5,
     color: colors.text,
   },
-
   button: {
     backgroundColor: colors.text,
-    paddingVertical: 15,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 20,
     marginTop: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-
   buttonText: {
     color: 'white',
     fontSize: 15,
+    textAlign: 'center',
   },
-
   imagePlaceholder: {
     width: 80,
     height: 80,
     backgroundColor: '#ccc',
     borderRadius: 10,
   },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -243,7 +236,6 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginTop: 10,
   },
-
   card: {
     width: 100,
     backgroundColor: 'white',
@@ -252,7 +244,6 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
   },
-
   cardImg: {
     width: 70,
     height: 70,
@@ -260,7 +251,6 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     borderRadius: 8,
   },
-
   cardText: {
     fontSize: 12,
     color: colors.text,
@@ -285,7 +275,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-
   navText: {
     color: 'white',
     fontSize: 12,
@@ -304,8 +293,11 @@ const styles = StyleSheet.create({
     borderRadius: 25, // 寬度的一半才能變圓
     justifyContent: 'center',
     alignItems: 'center',
-
   },
-
-
+  plusButtonText: {
+    color: 'white',
+    fontSize: 37,
+    lineHeight: 45,
+    textAlign: 'center',
+  },
 });
