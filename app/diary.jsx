@@ -17,8 +17,8 @@ const categories = [
 
 // 日誌資料
 const diaries = [
-  { id: '1', title: '巴斯克蛋糕', status: '公開', date: '2026.04.08', image: require('../img/cake.png') },
-  { id: '2', title: '紐約重乳酪', status: '私人', date: '2026.04.08', image: require('../img/chiffon.png') },
+  { id: '1', title: '巴斯克蛋糕', status: '公開', date: '2026.04.08', image: require('../img/basque.png') },
+  { id: '2', title: '紐約重乳酪', status: '私人', date: '2026.04.08', image: require('../img/cheesecake.png') },
 ];
 
 export default function BakingLogScreen() {
@@ -71,7 +71,7 @@ export default function BakingLogScreen() {
 
           {/* 繼續建立按鈕 (最後一個項目) */}
           <View style={styles.diaryCard}>
-            <Image source={require('../img/addphoto.png')} style={styles.diaryImage} />
+            <Image source={require('../img/book.png')} style={styles.diaryImage} />
             <View style={styles.diaryInfo}>
               <TouchableOpacity style={styles.createNewButton}>
                 <Image source={require('../img/add.png')} style={styles.createNewIcon} />
@@ -141,8 +141,6 @@ const styles = StyleSheet.create({
   diaryImage: {
     width: 100, 
     height: 140, 
-    borderWidth: 1, 
-    borderColor: '#5D4037', 
     borderRadius: 4,
     resizeMode: 'cover',
   },
@@ -152,8 +150,6 @@ const styles = StyleSheet.create({
   statusBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: '#8D6E63', 
     borderRadius: 8, 
     paddingHorizontal: 12, 
     paddingVertical: 4,
@@ -167,8 +163,6 @@ const styles = StyleSheet.create({
   createNewButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: '#8D6E63', 
     borderRadius: 8, 
     paddingHorizontal: 15, 
     paddingVertical: 8,
