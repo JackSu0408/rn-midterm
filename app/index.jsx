@@ -47,7 +47,7 @@ export default function Index() {
             {/* 創作者卡片 */}
             {[1, 2, 3, 4].map((item) => (
               <View key={item} style={styles.creatorCard}>
-                <View style={styles.creatorImg} />
+                <Image source={require('../img/miffybaby.png')}style={styles.creatorImg} />
                 <Text style={styles.creatorText}>author</Text>
               </View>
             ))}
@@ -109,7 +109,7 @@ export default function Index() {
             <Image source={require('../img/home.png')} style={styles.icon} />
             <Text style={styles.navText}>首頁</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
             <Image source={require('../img/favorite.png')} style={styles.icon} />
             <Text style={styles.navText}>收藏</Text>
           </TouchableOpacity>
@@ -122,7 +122,7 @@ export default function Index() {
             <Image source={require('../img/gallery.png')} style={styles.icon} />
             <Text style={styles.navText}>日誌本</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
             <Image source={require('../img/member.png')} style={styles.icon} />
             <Text style={styles.navText}>我的</Text>
           </TouchableOpacity>

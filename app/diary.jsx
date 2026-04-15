@@ -8,11 +8,11 @@ const categories = [
   { name: '蛋糕', icon: require('../img/cake.png') },
   { name: '麵包', icon: require('../img/bread.png') },
   { name: '餅乾', icon: require('../img/cookie.png') },
-  { name: '泡芙', icon: require('../img/puff.png') },
-  { name: '法式', icon: require('../img/cafe.png') },
-  { name: '英式', icon: require('../img/bread.png') },
-  { name: '日式', icon: require('../img/cake.png') },
-  { name: '美式', icon: require('../img/cookie.png') },
+  { name: '泡芙', icon: require('../img/sorticon.png') },
+  { name: '法式', icon: require('../img/sorticon.png') },
+  { name: '英式', icon: require('../img/sorticon.png') },
+  { name: '日式', icon: require('../img/sorticon.png') },
+  { name: '美式', icon: require('../img/sorticon.png') },
 ];
 
 // 日誌資料
@@ -92,7 +92,7 @@ export default function BakingLogScreen() {
             <Image source={require('../img/home.png')} style={styles.icon} />
             <Text style={styles.navText}>首頁</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
             <Image source={require('../img/favorite.png')} style={styles.icon} />
             <Text style={styles.navText}>收藏</Text>
           </TouchableOpacity>
@@ -101,7 +101,7 @@ export default function BakingLogScreen() {
             <Image source={require('../img/gallery.png')} style={styles.icon} />
             <Text style={styles.navText}>日誌本</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
             <Image source={require('../img/member.png')} style={styles.icon} />
             <Text style={styles.navText}>我的</Text>
           </TouchableOpacity>

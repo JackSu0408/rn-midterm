@@ -119,7 +119,7 @@ export default function BakingDetailScreen() {
                     <Text style={styles.headerTitle}>{recipe.title}</Text>
                 </TouchableOpacity>
                 <View style={styles.headerIcons}>
-                    <Image source={require('../img/favorite.png')} style={[styles.headerIcon, { marginRight: 15 }]} />
+                    <Image source={require('../img/save.png')} style={[styles.headerIcon, { marginRight: 15 }]} />
                     <Image source={require('../img/share.png')} style={styles.headerIcon} />
                 </View>
             </View>
