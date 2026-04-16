@@ -1,22 +1,46 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, Text, TextInput, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useRecipeStore } from '../store/recipeStore';
 
-const FormItem = ({ iconSource, label, placeholder }) => (
-    <View style={styles.formItem}>
-        <View style={styles.labelContainer}>
-            <Image source={iconSource} style={styles.formIcon} />
-            <Text style={styles.labelText}>{label} |</Text>
+const FormItem = ({ iconSource, label, placeholder, value, onChangeText, multiline = false }) => {
+    const minInputHeight = 34;
+    const maxInputHeight = 70;
+    const [inputHeight, setInputHeight] = useState(minInputHeight);
+
+    const handleContentSizeChange = (event) => {
+        if (!multiline) {
+            return;
+        }
+        const contentHeight = event.nativeEvent.contentSize.height;
+        const nextHeight = Math.max(minInputHeight, Math.min(maxInputHeight, contentHeight));
+        setInputHeight(nextHeight);
+    };
+
+    return (
+        <View style={[styles.formItem, multiline && styles.formItemMultiline]}>
+            <View style={[styles.labelContainer, multiline && styles.labelContainerMultiline]}>
+                <Image source={iconSource} style={styles.formIcon} />
+                <Text style={styles.labelText}>{label} |</Text>
+            </View>
+            <TextInput
+                style={[styles.input, multiline && styles.inputMultiline, multiline && { height: inputHeight }]}
+                placeholder={placeholder}
+                placeholderTextColor="#A0A0A0"
+                value={value}
+                onChangeText={onChangeText}
+                multiline={multiline}
+                textAlignVertical={multiline ? 'top' : 'center'}
+                scrollEnabled={multiline && inputHeight >= maxInputHeight}
+                onContentSizeChange={handleContentSizeChange}
+            />
         </View>
-        <TextInput
-            style={styles.input}
-            placeholder={placeholder}
-            placeholderTextColor="#A0A0A0"
-        />
-    </View>
-);
+    );
+};
+
+const CATEGORY_OPTIONS = ['蛋糕', '麵包', '餅乾', '泡芙', '法式', '英式', '日式', '美式'];
 
 const colors = {
   light: '#FFE1AF',
@@ -28,7 +52,20 @@ const colors = {
 
 export default function BakingRecordScreen() {
     const router = useRouter();
+    const { editId } = useLocalSearchParams();
+    const normalizedEditId = Array.isArray(editId) ? editId[0] : editId;
+    const addRecipe = useRecipeStore((state) => state.addRecipe);
+    const updateRecipe = useRecipeStore((state) => state.updateRecipe);
+    const editingRecipe = useRecipeStore((state) =>
+        normalizedEditId ? state.recipes[String(normalizedEditId)] : null
+    );
     const [recordName, setRecordName] = useState('');
+    const [ingredientText, setIngredientText] = useState('');
+    const [methodText, setMethodText] = useState('');
+    const [heatTimeText, setHeatTimeText] = useState('');
+    const [noteText, setNoteText] = useState('');
+    const [category, setCategory] = useState('蛋糕');
+    const [showCategoryOptions, setShowCategoryOptions] = useState(false);
     const [satisfaction, setSatisfaction] = useState(0);
     const [permission, setPermission] = useState('公開');
     const [showPermissionOptions, setShowPermissionOptions] = useState(false);
@@ -36,6 +73,74 @@ export default function BakingRecordScreen() {
 
     const maxImages = 20;
     const remainingImages = useMemo(() => maxImages - images.length, [images.length]);
+
+    useEffect(() => {
+        if (!normalizedEditId || !editingRecipe) {
+            return;
+        }
+
+        const noteLines = String(editingRecipe.note || '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        let nextHeatTime = '';
+        let nextCategory = editingRecipe.category || '蛋糕';
+        let nextPermission = editingRecipe.permission || '公開';
+        const pureNoteLines = [];
+
+        noteLines.forEach((line) => {
+            if (line.startsWith('烤溫及時間：')) {
+                nextHeatTime = line.replace('烤溫及時間：', '').trim();
+                return;
+            }
+            if (line.startsWith('分類：')) {
+                nextCategory = line.replace('分類：', '').trim() || nextCategory;
+                return;
+            }
+            if (line.startsWith('權限：')) {
+                nextPermission = line.replace('權限：', '').trim() || nextPermission;
+                return;
+            }
+            pureNoteLines.push(line);
+        });
+
+        const imageSources = Array.isArray(editingRecipe.images) && editingRecipe.images.length > 0
+            ? editingRecipe.images
+            : (editingRecipe.image ? [editingRecipe.image] : []);
+
+        setRecordName(editingRecipe.title || '');
+        setIngredientText(
+            Array.isArray(editingRecipe.ingredients)
+                ? editingRecipe.ingredients
+                      .map((item) => [item.name, item.amount].filter(Boolean).join(' ').trim())
+                      .filter(Boolean)
+                      .join('\n')
+                : ''
+        );
+        setMethodText(Array.isArray(editingRecipe.steps) ? editingRecipe.steps.join('\n') : '');
+        setHeatTimeText(nextHeatTime);
+        setNoteText(pureNoteLines.join('\n'));
+        setCategory(nextCategory);
+        setPermission(nextPermission);
+        setSatisfaction(Number.parseInt(String(editingRecipe.satisfaction || '0'), 10) || 0);
+        setImages(
+            imageSources
+                .map((source, index) => {
+                    if (!source) {
+                        return null;
+                    }
+                    if (typeof source === 'number') {
+                        return { id: `local-${index}`, source };
+                    }
+                    if (source?.uri) {
+                        return { id: source.uri, uri: source.uri, source: { uri: source.uri } };
+                    }
+                    return { id: `remote-${index}`, source };
+                })
+                .filter(Boolean)
+        );
+    }, [normalizedEditId, editingRecipe]);
 
     const pickImages = async () => {
         if (remainingImages <= 0) {
@@ -50,7 +155,7 @@ export default function BakingRecordScreen() {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsMultipleSelection: true,
             selectionLimit: remainingImages,
             quality: 1,
@@ -61,7 +166,12 @@ export default function BakingRecordScreen() {
         }
 
         // Guard again to keep the list capped at 20 even if picker returns more assets.
-        setImages((prev) => [...prev, ...result.assets].slice(0, maxImages));
+        const picked = result.assets.map((asset, index) => ({
+            id: `${asset.uri}-${Date.now()}-${index}`,
+            uri: asset.uri,
+            source: { uri: asset.uri },
+        }));
+        setImages((prev) => [...prev, ...picked].slice(0, maxImages));
     };
 
     const removeImage = (indexToRemove) => {
@@ -82,14 +192,52 @@ export default function BakingRecordScreen() {
             return;
         }
 
-        router.replace({
-            pathname: '/',
-            params: {
-                recentName: trimmedName,
-                recentDate: formatDate(new Date()),
-                recentImageUri: images[0]?.uri ?? '',
-            },
-        });
+        const ingredients = ingredientText
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => ({ name: line, amount: '' }));
+
+        const steps = methodText
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        const normalizedImages = images
+            .map((item) => item.source || (item.uri ? { uri: item.uri } : null))
+            .filter(Boolean);
+
+        const mergedNote = [
+            noteText.trim(),
+            heatTimeText.trim() ? `烤溫及時間：${heatTimeText.trim()}` : '',
+            `分類：${category}`,
+            `權限：${permission}`,
+        ]
+            .filter(Boolean)
+            .join('\n');
+
+        const payload = {
+            title: trimmedName,
+            image: normalizedImages[0] || null,
+            images: normalizedImages,
+            userName: 'Me',
+            userAvatar: require('../img/Meeeee.png'),
+            satisfaction: `${satisfaction}★`,
+            note: mergedNote || '未填寫備註',
+            date: formatDate(new Date()),
+            ingredients: ingredients.length ? ingredients : [{ name: '未填寫食材', amount: '' }],
+            steps: steps.length ? steps : ['未填寫作法'],
+            category,
+            permission,
+        };
+
+        if (normalizedEditId) {
+            updateRecipe(normalizedEditId, payload);
+        } else {
+            addRecipe(payload);
+        }
+
+        router.replace('/');
     };
 
     return (
@@ -99,7 +247,7 @@ export default function BakingRecordScreen() {
                                 <TouchableOpacity onPress={() => router.replace('/')}>
                                         <Image source={require('../img/back.png')} style={styles.headerBackIcon} />
                                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>烘焙紀錄</Text>
+                <Text style={styles.headerTitle}>{normalizedEditId ? '編輯烘焙紀錄' : '烘焙紀錄'}</Text>
             </View>
 
             <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -116,9 +264,30 @@ export default function BakingRecordScreen() {
                 </View>
 
                 {/* 各種表單項目 */}
-                <FormItem iconSource={require('../img/shopping_cart_24dp_693F27_FILL0_wght400_GRAD0_opsz24.png')} label="食材" placeholder="" />
-                <FormItem iconSource={require('../img/method.png')} label="作法" placeholder="" />
-                <FormItem iconSource={require('../img/heat.png')} label="烤溫及時間" placeholder="" />
+                <FormItem
+                    iconSource={require('../img/shopping_cart_24dp_693F27_FILL0_wght400_GRAD0_opsz24.png')}
+                    label="食材"
+                    placeholder="請輸入食材"
+                    value={ingredientText}
+                    onChangeText={setIngredientText}
+                    multiline
+                />
+                <FormItem
+                    iconSource={require('../img/method.png')}
+                    label="作法"
+                    placeholder="請輸入作法"
+                    value={methodText}
+                    onChangeText={setMethodText}
+                    multiline
+                />
+                <FormItem
+                    iconSource={require('../img/heat.png')}
+                    label="烤溫及時間"
+                    placeholder="請輸入烤溫及時間"
+                    value={heatTimeText}
+                    onChangeText={setHeatTimeText}
+                    multiline
+                />
                 <View style={styles.formItemRating}>
                     <View style={styles.labelContainerRating}>
                         <Image source={require('../img/star.png')} style={styles.formIcon} />
@@ -142,8 +311,49 @@ export default function BakingRecordScreen() {
                         })}
                     </View>
                 </View>
-                <FormItem iconSource={require('../img/label.png')} label="標籤" placeholder="" />
-                <FormItem iconSource={require('../img/note.png')} label="備註" placeholder="" />
+                <View style={[styles.formItemStack, showCategoryOptions && styles.formItemStackCategoryActive]}>
+                    <View style={[styles.formItem, styles.formItemInStack]}>
+                        <View style={styles.labelContainer}>
+                            <Image source={require('../img/label.png')} style={styles.formIcon} />
+                            <Text style={styles.labelText}>分類 |</Text>
+                        </View>
+                        <View style={styles.dropdownWrap}>
+                            <TouchableOpacity
+                                style={styles.dropdownTrigger}
+                                onPress={() => setShowCategoryOptions((prev) => !prev)}
+                            >
+                                <Text style={styles.dropdownText}>{category}</Text>
+                                <Text style={styles.dropdownArrow}>{showCategoryOptions ? '▲' : '▼'}</Text>
+                            </TouchableOpacity>
+
+                            {showCategoryOptions && (
+                                <View style={styles.dropdownOptionsCategory}>
+                                    {CATEGORY_OPTIONS.map((option) => (
+                                        <TouchableOpacity
+                                            key={option}
+                                            style={styles.dropdownOption}
+                                            onPress={() => {
+                                                setCategory(option);
+                                                setShowCategoryOptions(false);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownOptionText}>{option}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                </View>
+
+                <FormItem
+                    iconSource={require('../img/note.png')}
+                    label="備註"
+                    placeholder="請輸入備註"
+                    value={noteText}
+                    onChangeText={setNoteText}
+                    multiline
+                />
 
                 <View style={[styles.formItemStack, showPermissionOptions && styles.formItemStackActive]}>
                     <View style={[styles.formItem, styles.formItemInStack]}>
@@ -199,8 +409,8 @@ export default function BakingRecordScreen() {
                             contentContainerStyle={styles.imagePreviewContainer}
                         >
                             {images.map((item, index) => (
-                                <View key={`${item.uri}-${index}`} style={styles.imageCard}>
-                                    <Image source={{ uri: item.uri }} style={styles.previewImage} />
+                                <View key={`${item.id || item.uri || 'image'}-${index}`} style={styles.imageCard}>
+                                    <Image source={item.source} style={styles.previewImage} />
                                     <TouchableOpacity
                                         style={styles.removeImageButton}
                                         onPress={() => removeImage(index)}
@@ -226,7 +436,7 @@ export default function BakingRecordScreen() {
                         <Image source={require('../img/home.png')} style={styles.icon} />
                         <Text style={styles.navText}>首頁</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+                      <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
                         <Image source={require('../img/favorite.png')} style={styles.icon} />
                         <Text style={styles.navText}>收藏</Text>
                       </TouchableOpacity>
@@ -239,7 +449,7 @@ export default function BakingRecordScreen() {
                         <Image source={require('../img/gallery.png')} style={styles.icon} />
                         <Text style={styles.navText}>日誌本</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+                      <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
                         <Image source={require('../img/member.png')} style={styles.icon} />
                         <Text style={styles.navText}>我的</Text>
                       </TouchableOpacity>
@@ -265,15 +475,33 @@ const styles = StyleSheet.create({
     namePrefix: { fontSize: 28, color: '#5D4037', marginRight: 8 },
     nameInput: { fontSize: 24, fontWeight: 'bold', flex: 1 },
     formItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+    formItemMultiline: { alignItems: 'flex-start' },
     formItemInStack: { marginBottom: 0 },
     formItemRating: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
     formItemStack: { marginBottom: 16 },
     formItemStackActive: { zIndex: 30 },
-    labelContainer: { flexDirection: 'row', alignItems: 'center', width: 140 },
-    labelContainerRating: { flexDirection: 'row', alignItems: 'center', width: 110, flexShrink: 0 },
+    formItemStackCategoryActive: { zIndex: 60 },
+    labelContainer: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
+    labelContainerMultiline: { marginTop: 8 },
+    labelContainerRating: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
     formIcon: { width: 24, height: 24 },
-    labelText: { fontSize: 18, color: '#5D4037', marginLeft: 10, fontWeight: '600' },
-    input: { flex: 1, height: 40 },
+    labelText: { fontSize: 18, color: '#5D4037', marginLeft: 6, fontWeight: '600' },
+    input: {
+        flex: 1,
+        height: 34,
+        borderWidth: 1,
+        borderColor: '#D7CCC8',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        backgroundColor: '#FFF7EB',
+    },
+    inputMultiline: {
+        minHeight: 34,
+        maxHeight: 70,
+        lineHeight: 18,
+        paddingTop: 8,
+        paddingBottom: 8,
+    },
     starsRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -333,6 +561,20 @@ const styles = StyleSheet.create({
         width: 110,
         zIndex: 50,
         elevation: 3,
+    },
+    dropdownOptionsCategory: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        marginTop: 4,
+        borderWidth: 1,
+        borderColor: '#D7CCC8',
+        borderRadius: 8,
+        backgroundColor: '#FFF7EB',
+        overflow: 'hidden',
+        width: 120,
+        zIndex: 70,
+        elevation: 5,
     },
     dropdownOption: {
         paddingVertical: 10,

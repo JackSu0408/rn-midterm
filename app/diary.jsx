@@ -64,9 +64,16 @@ export default function BakingLogScreen() {
           <Text style={styles.sectionTitle}>我的日誌</Text>
           
           {diaryList.map((item) => (
-            <View
+            <TouchableOpacity
               key={item.id}
+              activeOpacity={0.88}
               style={[styles.diaryCard, openStatusId === item.id && styles.diaryCardActive]}
+              onPress={() =>
+                router.push({
+                  pathname: '/diaryLog',
+                  params: { diaryId: item.id, title: item.title },
+                })
+              }
             >
               <Image source={item.image} style={styles.diaryImage} />
               
@@ -96,7 +103,7 @@ export default function BakingLogScreen() {
                 </View>
                 <Text style={styles.updateDate}>最後一次更新於 {item.date}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
 
           {/* 繼續建立按鈕 (最後一個項目) */}
@@ -145,7 +152,7 @@ export default function BakingLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFECB3' },
+  container: { flex: 1, backgroundColor: '#FFE1AF' },
   header: { flexDirection: 'row', alignItems: 'center', padding: 16 },
   headerBackIcon: { width: 28, height: 28 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#5D4037', marginLeft: 8 },

@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { Alert, StyleSheet, Text, View, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useRecipeStore } from '../store/recipeStore';
 
 const colors = {
   light: '#FFE1AF',
@@ -9,40 +10,51 @@ const colors = {
   dark: '#B77466',
   text: '#693F27',
 };
-const RECENT_DESSERTS = [
-  { id: '1', name: '布朗尼', date: '2026.04.09', img: require('../img/brownie.png') },
-  { id: '2', name: '戚風蛋糕', date: '2026.04.03', img: require('../img/chiffon.png') },
-  { id: '3', name: '聖諾多黑', date: '2026.04.01', img: require('../img/puff.png') },
-];
-
-const RANKING_DESSERTS = [
-  { id: 'r1', name: '磅蛋糕', date: '2026.03.29', img: require('../img/poundcake.png') },
-  { id: 'r2', name: '蘋果奶酥', date: '2026.03.29', img: require('../img/crumble.png') },
-  { id: 'r3', name: '軟餅乾', date: '2026.03.28', img: require('../img/cookies.png') },
-];
-
 export default function Index() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const recipes = useRecipeStore((state) => state.recipes);
+  const recentOrder = useRecipeStore((state) => state.recentOrder);
+  const rankingOrder = useRecipeStore((state) => state.rankingOrder);
+  const removeRecipe = useRecipeStore((state) => state.removeRecipe);
 
-  const recentNameParam = Array.isArray(params.recentName) ? params.recentName[0] : params.recentName;
-  const recentDateParam = Array.isArray(params.recentDate) ? params.recentDate[0] : params.recentDate;
-  const recentImageUriParam = Array.isArray(params.recentImageUri) ? params.recentImageUri[0] : params.recentImageUri;
+  const handleDeleteCard = (item) => {
+    Alert.alert('刪除卡片', `確定要刪除「${item.title}」嗎？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '確定',
+        style: 'destructive',
+        onPress: () => removeRecipe(item.id),
+      },
+    ]);
+  };
 
-  const recentDesserts = useMemo(() => {
-    const cloned = [...RECENT_DESSERTS];
-    if (!recentNameParam && !recentDateParam && !recentImageUriParam) {
-      return cloned;
-    }
+  const handleCardLongPress = (item) => {
+    Alert.alert('卡片操作', `要對「${item.title}」做什麼？`, [
+      {
+        text: '編輯',
+        onPress: () =>
+          router.push({
+            pathname: '/record',
+            params: { editId: item.id },
+          }),
+      },
+      {
+        text: '刪除',
+        style: 'destructive',
+        onPress: () => handleDeleteCard(item),
+      },
+      { text: '取消', style: 'cancel' },
+    ]);
+  };
 
-    cloned[0] = {
-      ...cloned[0],
-      name: recentNameParam || cloned[0].name,
-      date: recentDateParam || cloned[0].date,
-      img: recentImageUriParam ? { uri: recentImageUriParam } : cloned[0].img,
-    };
-    return cloned;
-  }, [recentDateParam, recentImageUriParam, recentNameParam]);
+  const recentDesserts = recentOrder
+    .map((id) => recipes[id])
+    .filter(Boolean)
+    .slice(0, 10);
+
+  const rankingDesserts = rankingOrder
+    .map((id) => recipes[id])
+    .filter(Boolean);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,7 +97,7 @@ export default function Index() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.imagePlaceholder} />
+          <Image source={require('../img/book.png')} style={styles.imagePlaceholder} />
         </View>
 
         {/* 近期出爐 */}
@@ -96,10 +108,18 @@ export default function Index() {
               key={item.id}
               style={styles.card}
               onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+              onLongPress={() => handleCardLongPress(item)}
+              delayLongPress={350}
             >
-              <Image source={item.img} style={styles.cardImg} />
-              <Text style={styles.cardText}>{item.name}</Text>
-              <Text style={[styles.cardText, { fontSize: 10, color: '#999' }]}>{item.date}</Text>
+              {item.image ? (
+                <Image source={item.image} style={styles.cardImg} />
+              ) : (
+                <View style={styles.cardNoImageBox}>
+                  <Text style={styles.cardNoImageText}>暫無圖片</Text>
+                </View>
+              )}
+              <Text style={styles.cardText}>{item.title}</Text>
+              <Text style={styles.cardDateText}>{item.date}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -107,15 +127,23 @@ export default function Index() {
         {/* 排行榜 */}
         <Text style={styles.sectionTitle}>排行榜推薦</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {RANKING_DESSERTS.map((item) => (
+          {rankingDesserts.map((item) => (
             <TouchableOpacity
               key={item.id}
               style={styles.card}
               onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+              onLongPress={() => handleCardLongPress(item)}
+              delayLongPress={350}
             >
-              <Image source={item.img} style={styles.cardImg} />
-              <Text style={styles.cardText}>{item.name}</Text>
-              <Text style={[styles.cardText, { fontSize: 10, color: '#999' }]}>{item.date}</Text>
+              {item.image ? (
+                <Image source={item.image} style={styles.cardImg} />
+              ) : (
+                <View style={styles.cardNoImageBox}>
+                  <Text style={styles.cardNoImageText}>暫無圖片</Text>
+                </View>
+              )}
+              <Text style={styles.cardText}>{item.title}</Text>
+              <Text style={styles.cardDateText}>{item.date}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -171,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.text,
   },
@@ -219,6 +247,8 @@ const styles = StyleSheet.create({
     padding: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    position: 'relative',
+    minHeight: 150,
   },
   todayTitle: {
     fontSize: 24,
@@ -244,36 +274,60 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   imagePlaceholder: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#ccc',
+    width: 118,
+    height: 200,
     borderRadius: 10,
+    resizeMode: 'contain',
+    position: 'absolute',
+    right: 18,
+    top: -25,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.text,
     marginLeft: 20,
-    marginTop: 10,
+    marginTop: 14,
   },
   card: {
-    width: 100,
+    width: 128,
     backgroundColor: 'white',
-    margin: 15,
-    borderRadius: 10,
-    padding: 10,
+    marginHorizontal: 12,
+    marginVertical: 14,
+    borderRadius: 12,
+    padding: 12,
     alignItems: 'center',
   },
   cardImg: {
-    width: 70,
-    height: 70,
+    width: 96,
+    height: 96,
     backgroundColor: '#ddd',
-    marginBottom: 5,
-    borderRadius: 8,
+    marginBottom: 8,
+    borderRadius: 10,
+  },
+  cardNoImageBox: {
+    width: 96,
+    height: 96,
+    backgroundColor: '#D9D9D9',
+    marginBottom: 8,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardNoImageText: {
+    fontSize: 12,
+    color: '#5D4037',
+    fontWeight: '600',
   },
   cardText: {
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
+  },
+  cardDateText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
   },
   navContainer: {
     alignItems: 'center',

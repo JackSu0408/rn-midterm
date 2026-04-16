@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Dimensions, StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRecipeStore } from '../store/recipeStore';
 
 const colors = {
   light: '#FFE1AF',
@@ -11,114 +12,60 @@ const colors = {
   black: '#212121',
 };
 
-const DETAIL_DATA = {
-    '1': {
-        title: '布朗尼',
-        image: require('../img/brownie.png'),
-        userName: 'RWei',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '8★',
-        note: '外酥內軟、巧克力香氣濃郁。',
-        date: '2026.04.09',
-        ingredients: [
-            { name: '黑巧克力', amount: '200g' },
-            { name: '奶油', amount: '120g' },
-            { name: '低筋麵粉', amount: '80g' },
-        ],
-        steps: ['巧克力與奶油隔水加熱融化。', '拌入材料後以 170°C 烘烤約 25 分鐘。'],
-    },
-    '2': {
-        title: '戚風蛋糕',
-        image: require('../img/chiffon.png'),
-        userName: 'XEX',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '9★',
-        note: '口感輕盈，回彈很好。',
-        date: '2026.04.03',
-        ingredients: [
-            { name: '蛋', amount: '4 顆' },
-            { name: '細砂糖', amount: '70g' },
-            { name: '低筋麵粉', amount: '90g' },
-        ],
-        steps: ['蛋白打發至乾性發泡。', '與蛋黃麵糊拌勻後 160°C 烘烤 35 分鐘。'],
-    },
-    '3': {
-        title: '聖諾多黑',
-        image: require('../img/puff.png'),
-        userName: 'King',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '7★',
-        note: '焦糖上色漂亮，卡士達可再更濃。',
-        date: '2026.04.01',
-        ingredients: [
-            { name: '泡芙麵糊', amount: '1 份' },
-            { name: '卡士達醬', amount: '250g' },
-            { name: '焦糖', amount: '適量' },
-        ],
-        steps: ['先烤泡芙並填入卡士達。', '表面沾焦糖後組裝完成。'],
-    },
-    r1: {
-        title: '磅蛋糕',
-        image: require('../img/poundcake.png'),
-        userName: 'CuCu',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '8★',
-        note: '奶油香足，組織紮實濕潤。',
-        date: '2026.03.29',
-        ingredients: [
-            { name: '奶油', amount: '150g' },
-            { name: '細砂糖', amount: '120g' },
-            { name: '蛋', amount: '3 顆' },
-        ],
-        steps: ['奶油與糖打發後分次加蛋。', '拌入粉類後 170°C 烘烤 45 分鐘。'],
-    },
-    r2: {
-        title: '蘋果奶酥',
-        image: require('../img/crumble.png'),
-        userName: 'Qian',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '9★',
-        note: '酸甜平衡，奶酥酥脆。',
-        date: '2026.03.29',
-        ingredients: [
-            { name: '蘋果', amount: '2 顆' },
-            { name: '奶酥粒', amount: '150g' },
-            { name: '肉桂粉', amount: '少許' },
-        ],
-        steps: ['蘋果切丁拌糖與肉桂。', '鋪上奶酥後 180°C 烘烤 30 分鐘。'],
-    },
-    r3: {
-        title: '軟餅乾',
-        image: require('../img/cookies.png'),
-        userName: 'JackSu',
-        userAvatar: require('../img/Meeeee.png'),
-        satisfaction: '8★',
-        note: '邊緣微酥，中心柔軟。',
-        date: '2026.03.28',
-        ingredients: [
-            { name: '無鹽奶油', amount: '100g' },
-            { name: '黑糖', amount: '80g' },
-            { name: '巧克力豆', amount: '100g' },
-        ],
-        steps: ['材料拌勻後冷藏 20 分鐘。', '180°C 烘烤 10-12 分鐘。'],
-    },
-};
-
 export default function BakingDetailScreen() {
     const router = useRouter();
-    const { id } = useLocalSearchParams();
+    const { id, from, diaryId, title } = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState('摘要');
     const [isFavorite, setIsFavorite] = useState(false);
-    const recipe = DETAIL_DATA[id] || DETAIL_DATA['1'];
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const recipe = useRecipeStore((state) => state.getRecipeById(id));
+    const screenWidth = Dimensions.get('window').width;
+    const detailImages = useMemo(() => {
+        if (Array.isArray(recipe?.images) && recipe.images.length > 0) {
+            return recipe.images;
+        }
+        if (recipe?.image) {
+            return [recipe.image];
+        }
+        return [];
+    }, [recipe]);
+    const satisfactionValue = Number.parseInt(String(recipe?.satisfaction || '0'), 10) || 0;
+    const totalStars = 10;
+    const displayNote = (recipe?.note || '')
+        .split('\n')
+        .filter((line) => line && !line.startsWith('分類：') && !line.startsWith('權限：'))
+        .join('\n')
+        .trim();
+
+    useEffect(() => {
+        setCurrentImageIndex(0);
+    }, [id]);
+
+    const handleBackPress = () => {
+        if (from === 'diaryLog') {
+            router.replace({
+                pathname: '/diaryLog',
+                params: {
+                    diaryId,
+                    title,
+                },
+            });
+            return;
+        }
+
+        router.replace('/');
+    };
 
     return (
         <SafeAreaView style={styles.container}>
             {/* 1. Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.headerLeft} onPress={() => router.replace('/')}>
-                    <Image source={require('../img/back.png')} style={styles.headerIcon} />
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={handleBackPress}>
+                        <Image source={require('../img/back.png')} style={styles.headerIcon} />
+                    </TouchableOpacity>
                     <Text style={styles.headerTitle}>{recipe.title}</Text>
-                </TouchableOpacity>
+                </View>
                 <View style={styles.headerIcons}>
                     <TouchableOpacity onPress={() => setIsFavorite((prev) => !prev)}>
                         <Image
@@ -130,10 +77,52 @@ export default function BakingDetailScreen() {
                 </View>
             </View>
 
-            <ScrollView stickyHeaderIndices={[2]} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                stickyHeaderIndices={[2]}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {/* 2. Image Area */}
                 <View style={styles.imagePlaceholder}>
-                    <Image source={recipe.image} style={styles.mainImage} />
+                    {detailImages.length > 0 ? (
+                        <>
+                            <ScrollView
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                onMomentumScrollEnd={(event) => {
+                                    const width = event.nativeEvent.layoutMeasurement.width || screenWidth;
+                                    const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                                    setCurrentImageIndex(index);
+                                }}
+                            >
+                                {detailImages.map((imageSource, index) => (
+                                    <Image
+                                        key={`detail-image-${index}`}
+                                        source={imageSource}
+                                        style={[styles.mainImage, { width: screenWidth }]}
+                                    />
+                                ))}
+                            </ScrollView>
+                            {detailImages.length > 1 && (
+                                <View style={styles.carouselDots}>
+                                    {detailImages.map((_, index) => (
+                                        <View
+                                            key={`detail-dot-${index}`}
+                                            style={[
+                                                styles.carouselDot,
+                                                index === currentImageIndex && styles.carouselDotActive,
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+                        </>
+                    ) : (
+                        <View style={styles.noImageBox}>
+                            <Text style={styles.noImageText}>暫無圖片</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* 3. Segmented Tabs */}
@@ -160,8 +149,24 @@ export default function BakingDetailScreen() {
                     {/* 摘要 Section */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>摘要</Text>
-                        <Text style={styles.infoText}>滿意度：{recipe.satisfaction}</Text>
-                        <Text style={styles.infoText}>備註：{recipe.note}</Text>
+                        <View style={styles.satisfactionRow}>
+                            <Text style={styles.infoText}>滿意度：</Text>
+                            <View style={styles.satisfactionStars}>
+                                {Array.from({ length: totalStars }, (_, index) => {
+                                    const starValue = index + 1;
+                                    const isFilled = starValue <= satisfactionValue;
+                                    return (
+                                        <Text
+                                            key={`detail-star-${starValue}`}
+                                            style={[styles.satisfactionStar, isFilled ? styles.starFilled : styles.starEmpty]}
+                                        >
+                                            {isFilled ? '★' : '☆'}
+                                        </Text>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                        <Text style={styles.infoText}>備註：{displayNote || '未填寫備註'}</Text>
                         <Text style={styles.dateText}>{recipe.date}</Text>
                     </View>
 
@@ -193,7 +198,7 @@ export default function BakingDetailScreen() {
                         <Image source={require('../img/home.png')} style={styles.navIcon} />
                         <Text style={styles.navText}>首頁</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+                    <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
                         <Image source={require('../img/favorite.png')} style={styles.navIcon} />
                         <Text style={styles.navText}>收藏</Text>
                     </TouchableOpacity>
@@ -202,7 +207,7 @@ export default function BakingDetailScreen() {
                         <Image source={require('../img/gallery.png')} style={styles.navIcon} />
                         <Text style={styles.navText}>日誌本</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+                    <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
                         <Image source={require('../img/member.png')} style={styles.navIcon} />
                         <Text style={styles.navText}>我的</Text>
                     </TouchableOpacity>
@@ -217,6 +222,7 @@ export default function BakingDetailScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.light },
+    scrollContent: { paddingBottom: 110 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -225,21 +231,54 @@ const styles = StyleSheet.create({
     },
     headerLeft: { flexDirection: 'row', alignItems: 'center' },
     headerIcon: { width: 28, height: 28 },
-    headerTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginLeft: 8 },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.text, marginLeft: 8 },
     headerIcons: { flexDirection: 'row' },
     imagePlaceholder: {
         height: 250,
         backgroundColor: colors.light,
-        borderBottomColor: colors.text,
         justifyContent: 'center',
         alignItems: 'center'
+    },
+    noImageBox: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#D9D9D9',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    noImageText: {
+        color: '#5D4037',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    carouselDots: {
+        position: 'absolute',
+        bottom: 10,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    carouselDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.55)',
+        marginHorizontal: 3,
+    },
+    carouselDotActive: {
+        backgroundColor: '#FFFFFF',
+        width: 8,
+        height: 8,
+        borderRadius: 4,
     },
     mainImage: { width: '100%', height: '100%', resizeMode: 'cover' },
     tabContainer: {
         flexDirection: 'row',
         backgroundColor: colors.light,
         borderBottomWidth: 1,
-        borderBottomColor: colors.text
+        borderBottomColor: colors.dark
     },
     tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
     activeTabButton: { borderBottomWidth: 0 },
@@ -251,9 +290,14 @@ const styles = StyleSheet.create({
     userName: { marginLeft: 15, fontSize: 16, fontWeight: 'bold', color: colors.text },
     section: { marginBottom: 25 },
     sectionTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginBottom: 10 },
+    satisfactionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' },
+    satisfactionStars: { flexDirection: 'row', alignItems: 'center' },
+    satisfactionStar: { fontSize: 18, marginRight: 1 },
+    starFilled: { color: '#F5A623' },
+    starEmpty: { color: '#B0A9A5' },
     infoText: { fontSize: 16, color: '#3E2723', marginBottom: 5 },
     dateText: { fontSize: 12, color: '#8D6E63', marginTop: 5 },
-    borderTop: { borderTopWidth: 1, borderTopColor: colors.text, paddingTop: 20 },
+    borderTop: { borderTopWidth: 1, borderTopColor: colors.dark, paddingTop: 20 },
     listItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: colors.text, marginRight: 10 },
     listText: { fontSize: 16, color: '#3E2723' },

@@ -7,6 +7,9 @@ export default function RootLayout() {
             <Stack.Screen name="record" />
             <Stack.Screen name="detail" />
             <Stack.Screen name="diary" />
+            <Stack.Screen name="member" />
+            <Stack.Screen name="favorite" />
+            <Stack.Screen name="diaryLog" />
         </Stack>
     );
 }
