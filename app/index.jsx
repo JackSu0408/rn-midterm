@@ -28,25 +28,6 @@ export default function Index() {
     ]);
   };
 
-  const handleCardLongPress = (item) => {
-    Alert.alert('卡片操作', `要對「${item.title}」做什麼？`, [
-      {
-        text: '編輯',
-        onPress: () =>
-          router.push({
-            pathname: '/record',
-            params: { editId: item.id },
-          }),
-      },
-      {
-        text: '刪除',
-        style: 'destructive',
-        onPress: () => handleDeleteCard(item),
-      },
-      { text: '取消', style: 'cancel' },
-    ]);
-  };
-
   const recentDesserts = recentOrder
     .map((id) => recipes[id])
     .filter(Boolean)
@@ -108,7 +89,7 @@ export default function Index() {
               key={item.id}
               style={styles.card}
               onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
-              onLongPress={() => handleCardLongPress(item)}
+              onLongPress={() => handleDeleteCard(item)}
               delayLongPress={350}
             >
               {item.image ? (
@@ -132,7 +113,7 @@ export default function Index() {
               key={item.id}
               style={styles.card}
               onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
-              onLongPress={() => handleCardLongPress(item)}
+              onLongPress={() => handleDeleteCard(item)}
               delayLongPress={350}
             >
               {item.image ? (

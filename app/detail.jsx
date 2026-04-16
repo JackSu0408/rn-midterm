@@ -41,6 +41,17 @@ export default function BakingDetailScreen() {
         setCurrentImageIndex(0);
     }, [id]);
 
+    const handleEditPress = () => {
+        const recipeId = Array.isArray(id) ? id[0] : id;
+        if (!recipeId) {
+            return;
+        }
+        router.push({
+            pathname: '/record',
+            params: { editId: recipeId },
+        });
+    };
+
     const handleBackPress = () => {
         if (from === 'diaryLog') {
             router.replace({
@@ -67,13 +78,18 @@ export default function BakingDetailScreen() {
                     <Text style={styles.headerTitle}>{recipe.title}</Text>
                 </View>
                 <View style={styles.headerIcons}>
-                    <TouchableOpacity onPress={() => setIsFavorite((prev) => !prev)}>
+                    <TouchableOpacity style={styles.headerIconButton} onPress={handleEditPress}>
+                        <Image source={require('../img/edit.png')} style={[styles.headerIcon, styles.editHeaderIcon]} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} onPress={() => setIsFavorite((prev) => !prev)}>
                         <Image
                             source={isFavorite ? require('../img/love.png') : require('../img/save.png')}
-                            style={[styles.headerIcon, { marginRight: 15 }]}
+                            style={styles.headerIcon}
                         />
                     </TouchableOpacity>
-                    <Image source={require('../img/share.png')} style={styles.headerIcon} />
+                    <TouchableOpacity style={styles.headerIconButton}>
+                        <Image source={require('../img/share.png')} style={styles.headerIcon} />
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -232,7 +248,15 @@ const styles = StyleSheet.create({
     headerLeft: { flexDirection: 'row', alignItems: 'center' },
     headerIcon: { width: 28, height: 28 },
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.text, marginLeft: 8 },
-    headerIcons: { flexDirection: 'row' },
+    headerIcons: { flexDirection: 'row', alignItems: 'center' },
+    headerIconButton: {
+        width: 34,
+        height: 34,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 2,
+    },
+    editHeaderIcon: { tintColor: colors.dark },
     imagePlaceholder: {
         height: 250,
         backgroundColor: colors.light,

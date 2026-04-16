@@ -6,9 +6,33 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRecipeStore } from '../store/recipeStore';
 
 const FormItem = ({ iconSource, label, placeholder, value, onChangeText, multiline = false }) => {
-    const minInputHeight = 34;
-    const maxInputHeight = 70;
+    const lineHeight = 18;
+    const inputVerticalPadding = 16;
+    const maxLines = 3;
+    const minInputHeight = lineHeight + inputVerticalPadding;
+    const maxInputHeight = lineHeight * maxLines + inputVerticalPadding;
     const [inputHeight, setInputHeight] = useState(minInputHeight);
+
+    const getHeightByText = (text) => {
+        const lineCount = Math.max(1, String(text || '').split('\n').length);
+        const clampedLineCount = Math.min(maxLines, lineCount);
+        return lineHeight * clampedLineCount + inputVerticalPadding;
+    };
+
+    useEffect(() => {
+        if (!multiline) {
+            setInputHeight(minInputHeight);
+            return;
+        }
+        setInputHeight(getHeightByText(value));
+    }, [multiline, value, minInputHeight]);
+
+    const handleTextChange = (text) => {
+        if (multiline) {
+            setInputHeight(getHeightByText(text));
+        }
+        onChangeText(text);
+    };
 
     const handleContentSizeChange = (event) => {
         if (!multiline) {
@@ -16,7 +40,7 @@ const FormItem = ({ iconSource, label, placeholder, value, onChangeText, multili
         }
         const contentHeight = event.nativeEvent.contentSize.height;
         const nextHeight = Math.max(minInputHeight, Math.min(maxInputHeight, contentHeight));
-        setInputHeight(nextHeight);
+        setInputHeight((prev) => Math.max(prev, nextHeight));
     };
 
     return (
@@ -30,8 +54,11 @@ const FormItem = ({ iconSource, label, placeholder, value, onChangeText, multili
                 placeholder={placeholder}
                 placeholderTextColor="#A0A0A0"
                 value={value}
-                onChangeText={onChangeText}
+                onChangeText={handleTextChange}
                 multiline={multiline}
+                blurOnSubmit={!multiline}
+                submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}
+                returnKeyType={multiline ? 'default' : 'done'}
                 textAlignVertical={multiline ? 'top' : 'center'}
                 scrollEnabled={multiline && inputHeight >= maxInputHeight}
                 onContentSizeChange={handleContentSizeChange}
