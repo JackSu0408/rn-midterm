@@ -4,7 +4,21 @@
     "plugins": [
       "expo-router"
     ],
-    "name": "rn-mid",
-    "slug": "rn-mid"
+    "name": "食焙's",
+    "slug": "rn-mid",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5226e1fd-c4de-42f6-b60d-ecd229bf5f97"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5226e1fd-c4de-42f6-b60d-ecd229bf5f97"
+    },
+    "android": {},
+    "ios": {}
   }
 }
