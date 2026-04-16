@@ -159,7 +159,7 @@ export default function Index() {
 
         {/* 真正的中間大按鈕：使用絕對定位 */}
         <TouchableOpacity style={styles.plusButton} onPress={() => router.push('/record')}>
-          <Text style={styles.plusButtonText}>+</Text>
+          <Image source={require('../img/add.png')} style={styles.plusIcon} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -349,10 +349,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  plusButtonText: {
-    color: 'white',
-    fontSize: 37,
-    lineHeight: 45,
-    textAlign: 'center',
+  plusIcon: {
+    width: 30,
+    height: 30,
   },
 });
