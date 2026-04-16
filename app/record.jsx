@@ -399,7 +399,7 @@ export default function BakingRecordScreen() {
 
                             {showPermissionOptions && (
                                 <View style={styles.dropdownOptions}>
-                                    {['公開', '好友可見', '私人'].map((option) => (
+                                    {['公開', '私人'].map((option) => (
                                         <TouchableOpacity
                                             key={option}
                                             style={styles.dropdownOption}

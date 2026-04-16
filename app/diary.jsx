@@ -21,7 +21,7 @@ const diaries = [
   { id: '2', title: '紐約重乳酪', status: '私人', date: '2026.04.08', image: require('../img/cheesecake.png') },
 ];
 
-const STATUS_OPTIONS = ['公開', '好友可見', '私人'];
+const STATUS_OPTIONS = ['公開', '私人'];
 
 export default function BakingLogScreen() {
   const router = useRouter();
