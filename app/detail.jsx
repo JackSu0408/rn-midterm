@@ -108,6 +108,7 @@ export default function BakingDetailScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState('摘要');
+    const [isFavorite, setIsFavorite] = useState(false);
     const recipe = DETAIL_DATA[id] || DETAIL_DATA['1'];
 
     return (
@@ -119,7 +120,12 @@ export default function BakingDetailScreen() {
                     <Text style={styles.headerTitle}>{recipe.title}</Text>
                 </TouchableOpacity>
                 <View style={styles.headerIcons}>
-                    <Image source={require('../img/save.png')} style={[styles.headerIcon, { marginRight: 15 }]} />
+                    <TouchableOpacity onPress={() => setIsFavorite((prev) => !prev)}>
+                        <Image
+                            source={isFavorite ? require('../img/love.png') : require('../img/save.png')}
+                            style={[styles.headerIcon, { marginRight: 15 }]}
+                        />
+                    </TouchableOpacity>
                     <Image source={require('../img/share.png')} style={styles.headerIcon} />
                 </View>
             </View>

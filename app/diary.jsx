@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,8 +21,17 @@ const diaries = [
   { id: '2', title: '紐約重乳酪', status: '私人', date: '2026.04.08', image: require('../img/cheesecake.png') },
 ];
 
+const STATUS_OPTIONS = ['公開', '好友可見', '私人'];
+
 export default function BakingLogScreen() {
   const router = useRouter();
+  const [diaryList, setDiaryList] = useState(diaries);
+  const [openStatusId, setOpenStatusId] = useState(null);
+
+  const handleSelectStatus = (id, status) => {
+    setDiaryList((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+    setOpenStatusId(null);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -54,16 +63,37 @@ export default function BakingLogScreen() {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>我的日誌</Text>
           
-          {diaries.map((item) => (
-            <View key={item.id} style={styles.diaryCard}>
+          {diaryList.map((item) => (
+            <View
+              key={item.id}
+              style={[styles.diaryCard, openStatusId === item.id && styles.diaryCardActive]}
+            >
               <Image source={item.image} style={styles.diaryImage} />
               
               <View style={styles.diaryInfo}>
                 <Text style={styles.diaryTitle}>{item.title}</Text>
-                <TouchableOpacity style={styles.statusBadge}>
-                  <Text style={styles.statusText}>{item.status}</Text>
-                  <Text style={styles.statusArrow}>▼</Text>
-                </TouchableOpacity>
+                <View style={styles.statusWrap}>
+                  <TouchableOpacity
+                    style={styles.statusBadge}
+                    onPress={() => setOpenStatusId((prev) => (prev === item.id ? null : item.id))}
+                  >
+                    <Text style={styles.statusText}>{item.status}</Text>
+                    <Text style={styles.statusArrow}>{openStatusId === item.id ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {openStatusId === item.id && (
+                    <View style={styles.statusDropdown}>
+                      {STATUS_OPTIONS.map((option) => (
+                        <TouchableOpacity
+                          key={option}
+                          style={styles.statusOption}
+                          onPress={() => handleSelectStatus(item.id, option)}
+                        >
+                          <Text style={styles.statusOptionText}>{option}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.updateDate}>最後一次更新於 {item.date}</Text>
               </View>
             </View>
@@ -138,6 +168,7 @@ const styles = StyleSheet.create({
 
   // 日誌卡片樣式
   diaryCard: { flexDirection: 'row', marginBottom: 20, alignItems: 'center' },
+  diaryCardActive: { zIndex: 20 },
   diaryImage: {
     width: 100, 
     height: 140, 
@@ -147,6 +178,12 @@ const styles = StyleSheet.create({
   
   diaryInfo: { flex: 1, marginLeft: 20 },
   diaryTitle: { fontSize: 20, fontWeight: 'bold', color: '#5D4037', marginBottom: 8 },
+  statusWrap: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    zIndex: 30,
+    marginBottom: 8,
+  },
   statusBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -154,10 +191,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, 
     paddingVertical: 4,
     alignSelf: 'flex-start',
-    marginBottom: 8
+    backgroundColor: '#FFF7EB',
   },
   statusText: { color: '#8D6E63', marginRight: 4 },
   statusArrow: { color: '#8D6E63', fontSize: 12 },
+  statusDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    borderWidth: 1,
+    borderColor: '#D7CCC8',
+    borderRadius: 8,
+    backgroundColor: '#FFF7EB',
+    marginTop: 4,
+    width: 110,
+    overflow: 'hidden',
+    zIndex: 40,
+    elevation: 3,
+  },
+  statusOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  statusOptionText: {
+    color: '#5D4037',
+    fontSize: 13,
+  },
   updateDate: { fontSize: 10, color: '#8D6E63' },
   
   createNewButton: { 

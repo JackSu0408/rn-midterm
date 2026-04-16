@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 const colors = {
   light: '#FFE1AF',
@@ -23,6 +23,26 @@ const RANKING_DESSERTS = [
 
 export default function Index() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const recentNameParam = Array.isArray(params.recentName) ? params.recentName[0] : params.recentName;
+  const recentDateParam = Array.isArray(params.recentDate) ? params.recentDate[0] : params.recentDate;
+  const recentImageUriParam = Array.isArray(params.recentImageUri) ? params.recentImageUri[0] : params.recentImageUri;
+
+  const recentDesserts = useMemo(() => {
+    const cloned = [...RECENT_DESSERTS];
+    if (!recentNameParam && !recentDateParam && !recentImageUriParam) {
+      return cloned;
+    }
+
+    cloned[0] = {
+      ...cloned[0],
+      name: recentNameParam || cloned[0].name,
+      date: recentDateParam || cloned[0].date,
+      img: recentImageUriParam ? { uri: recentImageUriParam } : cloned[0].img,
+    };
+    return cloned;
+  }, [recentDateParam, recentImageUriParam, recentNameParam]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -71,7 +91,7 @@ export default function Index() {
         {/* 近期出爐 */}
         <Text style={styles.sectionTitle}>近期出爐</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {RECENT_DESSERTS.map((item) => (
+          {recentDesserts.map((item) => (
             <TouchableOpacity
               key={item.id}
               style={styles.card}
