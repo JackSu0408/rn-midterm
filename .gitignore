@@ -36,6 +36,7 @@ replay_pid*.log
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript

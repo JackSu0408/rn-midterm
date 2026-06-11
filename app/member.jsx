@@ -13,6 +13,7 @@ import { persistImageSource } from '../utils/imageStorage';
 const MENU_ITEMS = [
   { key: 'drafts', title: '草稿箱', iconName: 'draft', route: '/drafts' },
   { key: 'timer', title: '烘焙定時器', iconName: 'alarm', route: '/timer' },
+  { key: 'aiRecipe', title: 'AI 食譜生成', iconName: 'star', route: '/aiRecipe' },
   { key: 'notification', title: '通知設定', iconName: 'notification', route: '/notificationSettings' },
   { key: 'about', title: '關於我們／意見回饋', iconName: 'menu', route: '/about' },
 ];
