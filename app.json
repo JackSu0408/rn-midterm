@@ -2,7 +2,8 @@
   "expo": {
     "scheme": "acme",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-audio"
     ],
     "name": "食焙's",
     "slug": "rn-mid",
@@ -12,13 +13,13 @@
         "projectId": "5226e1fd-c4de-42f6-b60d-ecd229bf5f97"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/5226e1fd-c4de-42f6-b60d-ecd229bf5f97"
     },
-    "android": {},
+    "android": {
+      "package": "com.jack_su.rnmid"
+    },
     "ios": {}
   }
 }

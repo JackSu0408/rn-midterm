@@ -1,44 +1,139 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, View, Text, TextInput, ScrollView, TouchableOpacity, Image, Alert, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { useRecipeStore } from '../store/recipeStore';
+import { persistImageSource } from '../utils/imageStorage';
+import { useThemeColors } from '../store/themeStore';
+import { getIcon } from '../utils/icons';
+import AnimatedTouchable from '../components/AnimatedTouchable';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // 分類資料
 const categories = [
-  { name: '蛋糕', icon: require('../img/cake.png') },
-  { name: '麵包', icon: require('../img/bread.png') },
-  { name: '餅乾', icon: require('../img/cookie.png') },
-  { name: '泡芙', icon: require('../img/sorticon.png') },
-  { name: '法式', icon: require('../img/sorticon.png') },
-  { name: '英式', icon: require('../img/sorticon.png') },
-  { name: '日式', icon: require('../img/sorticon.png') },
-  { name: '美式', icon: require('../img/sorticon.png') },
-];
-
-// 日誌資料
-const diaries = [
-  { id: '1', title: '巴斯克蛋糕', status: '公開', date: '2026.04.08', image: require('../img/basque.png') },
-  { id: '2', title: '紐約重乳酪', status: '私人', date: '2026.04.08', image: require('../img/cheesecake.png') },
+  { name: '蛋糕', iconName: 'cake' },
+  { name: '麵包', iconName: 'bread' },
+  { name: '餅乾', iconName: 'cookie' },
+  { name: '其他', iconName: 'icecream' },
 ];
 
 const STATUS_OPTIONS = ['公開', '私人'];
 
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
+
 export default function BakingLogScreen() {
   const router = useRouter();
-  const [diaryList, setDiaryList] = useState(diaries);
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
+  const recipes = useRecipeStore((state) => state.recipes);
+  const recentOrder = useRecipeStore((state) => state.recentOrder);
+  const addRecipe = useRecipeStore((state) => state.addRecipe);
+  const updateRecipe = useRecipeStore((state) => state.updateRecipe);
+  const removeRecipe = useRecipeStore((state) => state.removeRecipe);
   const [openStatusId, setOpenStatusId] = useState(null);
+  const [editingTitleId, setEditingTitleId] = useState(null);
+
+  const diaryList = useMemo(
+    () =>
+      recentOrder
+        .map((id) => recipes[id])
+        .filter((recipe) => recipe && recipe.userName === 'Me' && recipe.category == null),
+    [recentOrder, recipes]
+  );
 
   const handleSelectStatus = (id, status) => {
-    setDiaryList((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+    const recipe = recipes[id];
+    if (!recipe) {
+      return;
+    }
+
+    const noteLines = String(recipe.note || '')
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('權限：'));
+    noteLines.push(`權限：${status}`);
+
+    updateRecipe(id, { permission: status, note: noteLines.join('\n') });
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpenStatusId(null);
+  };
+
+  const handleToggleStatusDropdown = (id) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenStatusId((prev) => (prev === id ? null : id));
+  };
+
+  const handleSelectCategory = (categoryName) => {
+    router.push({ pathname: '/category', params: { category: categoryName } });
+  };
+
+  const handleCreateDiary = () => {
+    addRecipe({
+      title: '',
+      image: null,
+      images: [],
+      userName: 'Me',
+      userAvatar: require('../img/Meeeee.png'),
+      satisfaction: '0★',
+      note: '未填寫備註\n權限：公開',
+      date: formatDate(new Date()),
+      ingredients: [{ name: '未填寫食材', amount: '' }],
+      steps: ['未填寫作法'],
+      category: null,
+      permission: '公開',
+      recipeIds: [],
+    });
+  };
+
+  const handleTitleChange = (id, text) => {
+    updateRecipe(id, { title: text });
+  };
+
+  const handleDeleteDiary = (id, title) => {
+    Alert.alert('刪除日誌本', `確定要刪除「${title || '未命名日誌本'}」嗎？此操作無法復原。`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '刪除',
+        style: 'destructive',
+        onPress: () => removeRecipe(id),
+      },
+    ]);
+  };
+
+  const handlePickCover = async (id) => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.status !== 'granted') {
+      Alert.alert('需要相簿權限', '請允許存取相簿後再新增封面。');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const source = persistImageSource({ uri: result.assets[0].uri });
+    updateRecipe(id, { image: source, images: [source] });
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace('/')}>
-          <Image source={require('../img/back.png')} style={styles.headerBackIcon} />
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+          <Image source={getIcon('back', colors.mode)} style={styles.headerBackIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>烘焙日誌本</Text>
       </View>
@@ -49,71 +144,117 @@ export default function BakingLogScreen() {
           <Text style={styles.sectionTitle}>分類</Text>
           <View style={styles.categoryGrid}>
             {categories.map((cat, index) => (
-              <View key={index} style={styles.categoryItem}>
+              <TouchableOpacity
+                key={index}
+                style={styles.categoryItem}
+                activeOpacity={0.8}
+                onPress={() => handleSelectCategory(cat.name)}
+              >
                 <View style={styles.iconBox}>
-                  <Image source={cat.icon} style={styles.categoryIcon} />
+                  <Image source={cat.icon || getIcon(cat.iconName, colors.mode)} style={styles.categoryIcon} />
                   <Text style={styles.categoryName}>{cat.name}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* 我的日誌區域 */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>我的日誌</Text>
+          <Text style={styles.sectionTitle}>我的日誌本</Text>
           
-          {diaryList.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              activeOpacity={0.88}
-              style={[styles.diaryCard, openStatusId === item.id && styles.diaryCardActive]}
-              onPress={() =>
-                router.push({
-                  pathname: '/diaryLog',
-                  params: { diaryId: item.id, title: item.title },
-                })
-              }
-            >
-              <Image source={item.image} style={styles.diaryImage} />
-              
-              <View style={styles.diaryInfo}>
-                <Text style={styles.diaryTitle}>{item.title}</Text>
-                <View style={styles.statusWrap}>
-                  <TouchableOpacity
-                    style={styles.statusBadge}
-                    onPress={() => setOpenStatusId((prev) => (prev === item.id ? null : item.id))}
-                  >
-                    <Text style={styles.statusText}>{item.status}</Text>
-                    <Text style={styles.statusArrow}>{openStatusId === item.id ? '▲' : '▼'}</Text>
-                  </TouchableOpacity>
-                  {openStatusId === item.id && (
-                    <View style={styles.statusDropdown}>
-                      {STATUS_OPTIONS.map((option) => (
-                        <TouchableOpacity
-                          key={option}
-                          style={styles.statusOption}
-                          onPress={() => handleSelectStatus(item.id, option)}
-                        >
-                          <Text style={styles.statusOptionText}>{option}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.updateDate}>最後一次更新於 {item.date}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {diaryList.length === 0 && (
+            <Text style={styles.emptyText}>還沒有日誌，建立你的第一筆烘焙紀錄吧！</Text>
+          )}
 
-          {/* 繼續建立按鈕 (最後一個項目) */}
+          {diaryList.map((item) => {
+            const status = item.permission || '公開';
+            return (
+              <View
+                key={item.id}
+                style={[styles.diaryCard, openStatusId === item.id && styles.diaryCardActive]}
+              >
+                <TouchableOpacity activeOpacity={0.8} onPress={() => handlePickCover(item.id)}>
+                  {item.image ? (
+                    <Image source={item.image} style={styles.diaryImage} />
+                  ) : (
+                    <Image source={require('../img/bookAdd.png')} style={styles.diaryImage} />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.diaryInfo}
+                  activeOpacity={0.88}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/diaryLog',
+                      params: { diaryId: item.id, title: item.title },
+                    })
+                  }
+                >
+                  <View style={styles.diaryTitleRow}>
+                    {editingTitleId === item.id || !item.title ? (
+                      <TextInput
+                        style={[styles.diaryTitleInput, styles.diaryTitleInputFlex]}
+                        value={item.title}
+                        onChangeText={(text) => handleTitleChange(item.id, text)}
+                        onBlur={() => setEditingTitleId(null)}
+                        onSubmitEditing={() => setEditingTitleId(null)}
+                        placeholder="請輸入日誌本名稱"
+                        placeholderTextColor={colors.gray}
+                        autoFocus={editingTitleId === item.id}
+                      />
+                    ) : (
+                      <>
+                        <Text style={styles.diaryTitle}>{item.title}</Text>
+                        <TouchableOpacity onPress={() => setEditingTitleId(item.id)}>
+                          <Image source={getIcon('edit', colors.mode)} style={styles.diaryTitleEditIcon} />
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    <TouchableOpacity
+                      style={styles.deleteDiaryButton}
+                      onPress={() => handleDeleteDiary(item.id, item.title)}
+                    >
+                      <Image source={getIcon('delete', colors.mode)} style={styles.deleteDiaryIcon} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.statusWrap}>
+                    <TouchableOpacity
+                      style={styles.statusBadge}
+                      onPress={() => handleToggleStatusDropdown(item.id)}
+                    >
+                      <Text style={styles.statusText}>{status}</Text>
+                      <Text style={styles.statusArrow}>{openStatusId === item.id ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {openStatusId === item.id && (
+                      <View style={styles.statusDropdown}>
+                        {STATUS_OPTIONS.map((option) => (
+                          <TouchableOpacity
+                            key={option}
+                            style={styles.statusOption}
+                            onPress={() => handleSelectStatus(item.id, option)}
+                          >
+                            <Text style={styles.statusOptionText}>{option}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.updateDate}>最後一次更新於 {item.date}</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {/* 繼續建立按鈕 */}
           <View style={styles.diaryCard}>
             <Image source={require('../img/book.png')} style={styles.diaryImage} />
             <View style={styles.diaryInfo}>
-              <TouchableOpacity style={styles.createNewButton}>
-                <Image source={require('../img/add.png')} style={styles.createNewIcon} />
+              <AnimatedTouchable style={styles.createNewButton} onPress={handleCreateDiary}>
+                <Image source={getIcon('add', colors.mode)} style={styles.createNewIcon} />
                 <Text style={styles.createNewText}>繼續建立</Text>
-              </TouchableOpacity>
+              </AnimatedTouchable>
             </View>
           </View>
         </View>
@@ -126,90 +267,123 @@ export default function BakingLogScreen() {
       <View style={styles.navContainer}>
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/')}>
-            <Image source={require('../img/home.png')} style={styles.icon} />
+            <Image source={getIcon('home', colors.mode)} style={styles.icon} />
             <Text style={styles.navText}>首頁</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
-            <Image source={require('../img/favorite.png')} style={styles.icon} />
+            <Image source={getIcon('favorite', colors.mode)} style={styles.icon} />
             <Text style={styles.navText}>收藏</Text>
           </TouchableOpacity>
           <View style={{ width: 80 }} />
           <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/diary')}>
-            <Image source={require('../img/gallery.png')} style={styles.icon} />
+            <Image source={getIcon('gallery', colors.mode)} style={styles.icon} />
             <Text style={styles.navText}>日誌本</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
-            <Image source={require('../img/member.png')} style={styles.icon} />
+            <Image source={getIcon('profile', colors.mode)} style={styles.icon} />
             <Text style={styles.navText}>我的</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.plusButton} onPress={() => router.push('/record')}>
-          <Image source={require('../img/add.png')} style={styles.plusIcon} />
+          <Image source={getIcon('add', 'dark')} style={styles.plusIcon} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFE1AF' },
+const createStyles = (colors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.light },
   header: { flexDirection: 'row', alignItems: 'center', padding: 16 },
   headerBackIcon: { width: 28, height: 28 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#5D4037', marginLeft: 8 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.subtleText, marginLeft: 8 },
   sectionContainer: { paddingHorizontal: 20, marginTop: 10 },
-  sectionTitle: { fontSize: 18, color: '#5D4037', marginBottom: 15 },
-  
+  sectionTitle: { fontSize: 18, color: colors.subtleText, marginBottom: 15 },
+
   // Grid 樣式
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   categoryItem: { width: '23%', marginBottom: 15, alignItems: 'center' },
-  iconBox: { 
-    width: '100%', 
-    aspectRatio: 1, 
-    backgroundColor: '#FFF', 
-    justifyContent: 'center', 
+  iconBox: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 4, // 稍微圓角
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   categoryIcon: { width: 28, height: 28, marginBottom: 4 },
-  categoryName: { fontSize: 12, color: '#8D6E63', marginTop: 4 },
+  categoryName: { fontSize: 12, color: colors.muted, marginTop: 4 },
+
+  emptyText: {
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
 
   // 日誌卡片樣式
   diaryCard: { flexDirection: 'row', marginBottom: 20, alignItems: 'center' },
   diaryCardActive: { zIndex: 20 },
   diaryImage: {
-    width: 100, 
-    height: 140, 
+    width: 100,
+    height: 140,
     borderRadius: 4,
     resizeMode: 'cover',
   },
-  
   diaryInfo: { flex: 1, marginLeft: 20 },
-  diaryTitle: { fontSize: 20, fontWeight: 'bold', color: '#5D4037', marginBottom: 8 },
+  diaryTitleInput: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.inputText,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 2,
+  },
+  diaryTitleInputFlex: { flex: 1, marginRight: 8 },
+  diaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  diaryTitle: { fontSize: 20, fontWeight: 'bold', color: colors.subtleText, flexShrink: 1 },
+  diaryTitleEditIcon: {
+    width: 16,
+    height: 16,
+    marginLeft: 8,
+    resizeMode: 'contain',
+  },
+  deleteDiaryButton: {
+    marginLeft: 'auto',
+    paddingLeft: 8,
+  },
+  deleteDiaryIcon: { width: 18, height: 18, resizeMode: 'contain' },
   statusWrap: {
     position: 'relative',
     alignSelf: 'flex-start',
     zIndex: 30,
     marginBottom: 8,
   },
-  statusBadge: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 8, 
-    paddingHorizontal: 12, 
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     alignSelf: 'flex-start',
-    backgroundColor: '#FFF7EB',
+    backgroundColor: colors.surfaceAlt,
   },
-  statusText: { color: '#8D6E63', marginRight: 4 },
-  statusArrow: { color: '#8D6E63', fontSize: 12 },
+  statusText: { color: colors.muted, marginRight: 4 },
+  statusArrow: { color: colors.muted, fontSize: 12 },
   statusDropdown: {
     position: 'absolute',
     top: '100%',
     left: 0,
     borderWidth: 1,
-    borderColor: '#D7CCC8',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#FFF7EB',
+    backgroundColor: colors.surfaceAlt,
     marginTop: 4,
     width: 110,
     overflow: 'hidden',
@@ -221,21 +395,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   statusOptionText: {
-    color: '#5D4037',
+    color: colors.subtleText,
     fontSize: 13,
   },
-  updateDate: { fontSize: 10, color: '#8D6E63' },
-  
-  createNewButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 8, 
-    paddingHorizontal: 15, 
+  updateDate: { fontSize: 10, color: colors.muted },
+
+  createNewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 15,
     paddingVertical: 8,
     alignSelf: 'flex-start'
   },
   createNewIcon: { width: 18, height: 18 },
-  createNewText: { color: '#8D6E63', marginLeft: 5 },
+  createNewText: { color: colors.muted, marginLeft: 5 },
 
   // Bottom Nav
   navContainer: {
@@ -248,7 +422,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#B77466',
+    backgroundColor: colors.dark,
     paddingVertical: 12,
     paddingHorizontal: 15,
     width: '100%',
@@ -270,7 +444,7 @@ const styles = StyleSheet.create({
   plusButton: {
     position: 'absolute',
     top: -25,
-    backgroundColor: '#212121',
+    backgroundColor: colors.fab,
     width: 50,
     height: 50,
     borderRadius: 25,

@@ -4,91 +4,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useRecipeStore } from '../store/recipeStore';
+import { persistImageSource } from '../utils/imageStorage';
+import { useThemeColors } from '../store/themeStore';
+import { getIcon } from '../utils/icons';
 
-const FormItem = ({ iconSource, label, placeholder, value, onChangeText, multiline = false }) => {
-    const lineHeight = 18;
-    const inputVerticalPadding = 16;
-    const maxLines = 3;
-    const minInputHeight = lineHeight + inputVerticalPadding;
-    const maxInputHeight = lineHeight * maxLines + inputVerticalPadding;
-    const [inputHeight, setInputHeight] = useState(minInputHeight);
-
-    const getHeightByText = (text) => {
-        const lineCount = Math.max(1, String(text || '').split('\n').length);
-        const clampedLineCount = Math.min(maxLines, lineCount);
-        return lineHeight * clampedLineCount + inputVerticalPadding;
-    };
-
-    useEffect(() => {
-        if (!multiline) {
-            setInputHeight(minInputHeight);
-            return;
-        }
-        setInputHeight(getHeightByText(value));
-    }, [multiline, value, minInputHeight]);
-
-    const handleTextChange = (text) => {
-        if (multiline) {
-            setInputHeight(getHeightByText(text));
-        }
-        onChangeText(text);
-    };
-
-    const handleContentSizeChange = (event) => {
-        if (!multiline) {
-            return;
-        }
-        const contentHeight = event.nativeEvent.contentSize.height;
-        const nextHeight = Math.max(minInputHeight, Math.min(maxInputHeight, contentHeight));
-        setInputHeight((prev) => Math.max(prev, nextHeight));
-    };
-
-    return (
-        <View style={[styles.formItem, multiline && styles.formItemMultiline]}>
-            <View style={[styles.labelContainer, multiline && styles.labelContainerMultiline]}>
-                <Image source={iconSource} style={styles.formIcon} />
-                <Text style={styles.labelText}>{label} |</Text>
-            </View>
-            <TextInput
-                style={[styles.input, multiline && styles.inputMultiline, multiline && { height: inputHeight }]}
-                placeholder={placeholder}
-                placeholderTextColor="#A0A0A0"
-                value={value}
-                onChangeText={handleTextChange}
-                multiline={multiline}
-                blurOnSubmit={!multiline}
-                submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}
-                returnKeyType={multiline ? 'default' : 'done'}
-                textAlignVertical={multiline ? 'top' : 'center'}
-                scrollEnabled={multiline && inputHeight >= maxInputHeight}
-                onContentSizeChange={handleContentSizeChange}
-            />
-        </View>
-    );
-};
-
-const CATEGORY_OPTIONS = ['蛋糕', '麵包', '餅乾', '泡芙', '法式', '英式', '日式', '美式'];
-
-const colors = {
-  light: '#FFE1AF',
-  mid: '#E2B59A',
-  dark: '#B77466',
-  text: '#693F27',
-    black: '#212121',
-};
+const CATEGORY_OPTIONS = ['蛋糕', '麵包', '餅乾', '其他'];
+const MAX_SATISFACTION = 5;
 
 export default function BakingRecordScreen() {
     const router = useRouter();
-    const { editId } = useLocalSearchParams();
+    const colors = useThemeColors();
+    const styles = createStyles(colors);
+    const { editId, draftId } = useLocalSearchParams();
     const normalizedEditId = Array.isArray(editId) ? editId[0] : editId;
+    const normalizedDraftId = Array.isArray(draftId) ? draftId[0] : draftId;
     const addRecipe = useRecipeStore((state) => state.addRecipe);
     const updateRecipe = useRecipeStore((state) => state.updateRecipe);
+    const saveDraft = useRecipeStore((state) => state.saveDraft);
+    const removeDraft = useRecipeStore((state) => state.removeDraft);
     const editingRecipe = useRecipeStore((state) =>
         normalizedEditId ? state.recipes[String(normalizedEditId)] : null
     );
+    const editingDraft = useRecipeStore((state) =>
+        normalizedDraftId ? state.getDraftById(normalizedDraftId) : null
+    );
     const [recordName, setRecordName] = useState('');
-    const [ingredientText, setIngredientText] = useState('');
-    const [methodText, setMethodText] = useState('');
+    const [ingredients, setIngredients] = useState(['']);
+    const [steps, setSteps] = useState(['', '', '']);
+    const [stepImages, setStepImages] = useState([null, null, null]);
     const [heatTimeText, setHeatTimeText] = useState('');
     const [noteText, setNoteText] = useState('');
     const [category, setCategory] = useState('蛋糕');
@@ -100,6 +43,7 @@ export default function BakingRecordScreen() {
 
     const maxImages = 20;
     const remainingImages = useMemo(() => maxImages - images.length, [images.length]);
+    const coverImage = images[0]?.source;
 
     useEffect(() => {
         if (!normalizedEditId || !editingRecipe) {
@@ -136,21 +80,30 @@ export default function BakingRecordScreen() {
             ? editingRecipe.images
             : (editingRecipe.image ? [editingRecipe.image] : []);
 
+        const nextIngredients = Array.isArray(editingRecipe.ingredients)
+            ? editingRecipe.ingredients
+                  .map((item) => [item.name, item.amount].filter(Boolean).join(' ').trim())
+                  .filter(Boolean)
+            : [];
+
+        const nextSteps = Array.isArray(editingRecipe.steps)
+            ? editingRecipe.steps.filter(Boolean)
+            : [];
+
+        const fallbackSteps = nextSteps.length ? nextSteps : ['', '', ''];
+        const savedStepImages = Array.isArray(editingRecipe.stepImages) ? editingRecipe.stepImages : [];
+
         setRecordName(editingRecipe.title || '');
-        setIngredientText(
-            Array.isArray(editingRecipe.ingredients)
-                ? editingRecipe.ingredients
-                      .map((item) => [item.name, item.amount].filter(Boolean).join(' ').trim())
-                      .filter(Boolean)
-                      .join('\n')
-                : ''
-        );
-        setMethodText(Array.isArray(editingRecipe.steps) ? editingRecipe.steps.join('\n') : '');
+        setIngredients(nextIngredients.length ? nextIngredients : ['']);
+        setSteps(fallbackSteps);
+        setStepImages(fallbackSteps.map((_, index) => savedStepImages[index] || null));
         setHeatTimeText(nextHeatTime);
         setNoteText(pureNoteLines.join('\n'));
         setCategory(nextCategory);
         setPermission(nextPermission);
-        setSatisfaction(Number.parseInt(String(editingRecipe.satisfaction || '0'), 10) || 0);
+        setSatisfaction(
+            Math.min(MAX_SATISFACTION, Number.parseInt(String(editingRecipe.satisfaction || '0'), 10) || 0)
+        );
         setImages(
             imageSources
                 .map((source, index) => {
@@ -168,6 +121,27 @@ export default function BakingRecordScreen() {
                 .filter(Boolean)
         );
     }, [normalizedEditId, editingRecipe]);
+
+    useEffect(() => {
+        if (!normalizedDraftId || !editingDraft) {
+            return;
+        }
+
+        setRecordName(editingDraft.recordName || '');
+        setIngredients(editingDraft.ingredients?.length ? editingDraft.ingredients : ['']);
+        setSteps(editingDraft.steps?.length ? editingDraft.steps : ['', '', '']);
+        setStepImages(
+            editingDraft.steps?.length
+                ? editingDraft.steps.map((_, index) => editingDraft.stepImages?.[index] || null)
+                : [null, null, null]
+        );
+        setHeatTimeText(editingDraft.heatTimeText || '');
+        setNoteText(editingDraft.noteText || '');
+        setCategory(editingDraft.category || '蛋糕');
+        setPermission(editingDraft.permission || '公開');
+        setSatisfaction(editingDraft.satisfaction || 0);
+        setImages(editingDraft.images || []);
+    }, [normalizedDraftId, editingDraft]);
 
     const pickImages = async () => {
         if (remainingImages <= 0) {
@@ -192,7 +166,6 @@ export default function BakingRecordScreen() {
             return;
         }
 
-        // Guard again to keep the list capped at 20 even if picker returns more assets.
         const picked = result.assets.map((asset, index) => ({
             id: `${asset.uri}-${Date.now()}-${index}`,
             uri: asset.uri,
@@ -201,8 +174,53 @@ export default function BakingRecordScreen() {
         setImages((prev) => [...prev, ...picked].slice(0, maxImages));
     };
 
-    const removeImage = (indexToRemove) => {
-        setImages((prev) => prev.filter((_, index) => index !== indexToRemove));
+    const pickStepImage = async (index) => {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.status !== 'granted') {
+            Alert.alert('需要相簿權限', '請允許存取相簿後再新增圖片。');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 1,
+        });
+
+        if (result.canceled || !result.assets?.length) {
+            return;
+        }
+
+        const uri = result.assets[0].uri;
+        setStepImages((prev) => prev.map((item, i) => (i === index ? { uri } : item)));
+    };
+
+    const updateIngredient = (index, text) => {
+        setIngredients((prev) => prev.map((item, i) => (i === index ? text : item)));
+    };
+
+    const addIngredient = () => {
+        setIngredients((prev) => [...prev, '']);
+    };
+
+    const removeIngredient = (index) => {
+        setIngredients((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+    };
+
+    const updateStep = (index, text) => {
+        setSteps((prev) => prev.map((item, i) => (i === index ? text : item)));
+    };
+
+    const addStep = () => {
+        setSteps((prev) => [...prev, '']);
+        setStepImages((prev) => [...prev, null]);
+    };
+
+    const removeStep = (index) => {
+        if (steps.length <= 1) {
+            return;
+        }
+        setSteps((prev) => prev.filter((_, i) => i !== index));
+        setStepImages((prev) => prev.filter((_, i) => i !== index));
     };
 
     const formatDate = (date) => {
@@ -219,20 +237,26 @@ export default function BakingRecordScreen() {
             return;
         }
 
-        const ingredients = ingredientText
-            .split('\n')
+        const normalizedIngredients = ingredients
             .map((line) => line.trim())
             .filter(Boolean)
             .map((line) => ({ name: line, amount: '' }));
 
-        const steps = methodText
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean);
+        const normalizedSteps = [];
+        const normalizedStepImages = [];
+        steps.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                return;
+            }
+            normalizedSteps.push(trimmed);
+            normalizedStepImages.push(stepImages[index] ? persistImageSource(stepImages[index]) : null);
+        });
 
         const normalizedImages = images
             .map((item) => item.source || (item.uri ? { uri: item.uri } : null))
-            .filter(Boolean);
+            .filter(Boolean)
+            .map(persistImageSource);
 
         const mergedNote = [
             noteText.trim(),
@@ -252,8 +276,9 @@ export default function BakingRecordScreen() {
             satisfaction: `${satisfaction}★`,
             note: mergedNote || '未填寫備註',
             date: formatDate(new Date()),
-            ingredients: ingredients.length ? ingredients : [{ name: '未填寫食材', amount: '' }],
-            steps: steps.length ? steps : ['未填寫作法'],
+            ingredients: normalizedIngredients.length ? normalizedIngredients : [{ name: '未填寫食材', amount: '' }],
+            steps: normalizedSteps.length ? normalizedSteps : ['未填寫作法'],
+            stepImages: normalizedSteps.length ? normalizedStepImages : [null],
             category,
             permission,
         };
@@ -264,89 +289,198 @@ export default function BakingRecordScreen() {
             addRecipe(payload);
         }
 
+        if (normalizedDraftId) {
+            removeDraft(normalizedDraftId);
+        }
+
         router.replace('/');
+    };
+
+    const handleSaveDraft = () => {
+        const persistedImages = images.map((item) => {
+            const source = item.source || (item.uri ? { uri: item.uri } : null);
+            const persisted = persistImageSource(source);
+            return persisted?.uri ? { id: item.id, uri: persisted.uri, source: persisted } : item;
+        });
+        const persistedStepImages = stepImages.map((item) => (item ? persistImageSource(item) : null));
+
+        const draftPayload = {
+            recordName,
+            ingredients,
+            steps,
+            stepImages: persistedStepImages,
+            heatTimeText,
+            noteText,
+            category,
+            permission,
+            satisfaction,
+            images: persistedImages,
+            updatedAt: formatDate(new Date()),
+        };
+
+        saveDraft(normalizedDraftId, draftPayload);
+        Alert.alert('已儲存草稿', '可以到「我的」頁面的草稿箱繼續編輯。', [
+            { text: '確定', onPress: () => router.replace('/') },
+        ]);
     };
 
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                                <TouchableOpacity onPress={() => router.replace('/')}>
-                                        <Image source={require('../img/back.png')} style={styles.headerBackIcon} />
-                                </TouchableOpacity>
-                <Text style={styles.headerTitle}>{normalizedEditId ? '編輯烘焙紀錄' : '烘焙紀錄'}</Text>
+                <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+                    <Image source={getIcon('back', colors.mode)} style={styles.headerBackIcon} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>
+                    {normalizedEditId ? '編輯烘焙紀錄' : normalizedDraftId ? '編輯草稿' : '烘焙紀錄'}
+                </Text>
             </View>
 
             <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+                {/* 封面圖片 */}
+                <View style={styles.coverImageBox}>
+                    {coverImage ? (
+                        <Image source={coverImage} style={styles.coverImage} />
+                    ) : (
+                        /* 這裡移除了原本內部交叉的 X 畫線 View */
+                        <View style={styles.coverPlaceholder} />
+                    )}
+                    <TouchableOpacity style={styles.changePhotoButton} onPress={pickImages}>
+                        <Image source={getIcon('addphoto', colors.mode)} style={styles.changePhotoIcon} />
+                        <Text style={styles.changePhotoText}>變更照片</Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* 名稱輸入欄位 */}
-                <View style={styles.nameContainer}>
-                    <Text style={styles.namePrefix}>|</Text>
+                <View style={styles.nameRow}>
+                    <Text style={styles.nameLabel}>名稱</Text>
                     <TextInput
                         style={styles.nameInput}
-                        placeholder="名稱"
-                        placeholderTextColor="#A0A0A0"
+                        placeholder="例如：熔岩巧克力蛋糕"
+                        placeholderTextColor={colors.gray}
                         value={recordName}
                         onChangeText={setRecordName}
                     />
                 </View>
 
-                {/* 各種表單項目 */}
-                <FormItem
-                    iconSource={require('../img/shopping_cart_24dp_693F27_FILL0_wght400_GRAD0_opsz24.png')}
-                    label="食材"
-                    placeholder="請輸入食材"
-                    value={ingredientText}
-                    onChangeText={setIngredientText}
-                    multiline
-                />
-                <FormItem
-                    iconSource={require('../img/method.png')}
-                    label="作法"
-                    placeholder="請輸入作法"
-                    value={methodText}
-                    onChangeText={setMethodText}
-                    multiline
-                />
-                <FormItem
-                    iconSource={require('../img/heat.png')}
-                    label="烤溫及時間"
-                    placeholder="請輸入烤溫及時間"
-                    value={heatTimeText}
-                    onChangeText={setHeatTimeText}
-                    multiline
-                />
-                <View style={styles.formItemRating}>
-                    <View style={styles.labelContainerRating}>
-                        <Image source={require('../img/star.png')} style={styles.formIcon} />
-                        <Text style={styles.labelText}>滿意度 |</Text>
-                    </View>
-                    <View style={styles.starsRow}>
-                        {Array.from({ length: 10 }, (_, index) => {
-                            const starValue = index + 1;
-                            const isFilled = starValue <= satisfaction;
-                            return (
-                                <TouchableOpacity
-                                    key={starValue}
-                                    onPress={() => setSatisfaction(starValue)}
-                                    style={styles.starButton}
-                                >
-                                    <Text style={[styles.starText, isFilled ? styles.starFilled : styles.starEmpty]}>
-                                        {isFilled ? '★' : '☆'}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                </View>
-                <View style={[styles.formItemStack, showCategoryOptions && styles.formItemStackCategoryActive]}>
-                    <View style={[styles.formItem, styles.formItemInStack]}>
-                        <View style={styles.labelContainer}>
-                            <Image source={require('../img/label.png')} style={styles.formIcon} />
-                            <Text style={styles.labelText}>分類 |</Text>
+                {/* 食材 */}
+                <View style={styles.sectionBlock}>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleRow}>
+                            <Image
+                                source={getIcon('ingredients', colors.mode)}
+                                style={styles.sectionIcon}
+                            />
+                            <Text style={styles.sectionTitleText}>食材</Text>
                         </View>
-                        <View style={styles.dropdownWrap}>
+                        <TouchableOpacity onPress={addIngredient}>
+                            <Text style={styles.addLink}>+新增食材</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {ingredients.map((value, index) => (
+                        <View key={`ingredient-${index}`} style={styles.listRow}>
+                            <Text style={styles.dragHandle}>☰</Text>
+                            <TextInput
+                                style={styles.listInput}
+                                placeholder="請輸入食材"
+                                placeholderTextColor={colors.gray}
+                                value={value}
+                                onChangeText={(text) => updateIngredient(index, text)}
+                            />
+                            {ingredients.length > 1 && (
+                                <TouchableOpacity onPress={() => removeIngredient(index)} style={styles.rowDeleteButton}>
+                                    <Image source={getIcon('delete', colors.mode)} style={styles.rowDeleteIcon} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    ))}
+                </View>
+
+                {/* 作法 */}
+                <View style={styles.sectionBlock}>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleRow}>
+                            <Image source={getIcon('method', colors.mode)} style={styles.sectionIcon} />
+                            <Text style={styles.sectionTitleText}>作法</Text>
+                        </View>
+                        <TouchableOpacity onPress={addStep}>
+                            <Text style={styles.addLink}>+新增步驟</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {styles && steps.map((value, index) => (
+                        <View key={`step-${index}`} style={styles.listRow}>
+                            <View style={styles.stepNumberCircle}>
+                                <Text style={styles.stepNumberText}>{index + 1}</Text>
+                            </View>
+                            <TextInput
+                                style={styles.listInput}
+                                placeholder="請輸入作法"
+                                placeholderTextColor={colors.gray}
+                                value={value}
+                                onChangeText={(text) => updateStep(index, text)}
+                            />
+                            <TouchableOpacity style={styles.stepImageButton} onPress={() => pickStepImage(index)}>
+                                {stepImages[index] ? (
+                                    <Image source={stepImages[index]} style={styles.stepImageThumb} />
+                                ) : (
+                                    <Image source={getIcon('addphoto', colors.mode)} style={styles.stepImageIcon} />
+                                )}
+                            </TouchableOpacity>
+                            {steps.length > 1 && (
+                                <TouchableOpacity onPress={() => removeStep(index)} style={styles.rowDeleteButton}>
+                                    <Image source={getIcon('delete', colors.mode)} style={styles.rowDeleteIcon} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    ))}
+                </View>
+
+                {/* 烤溫及時間 / 滿意度 / 標籤 */}
+                <View style={[styles.tripleRow, showCategoryOptions && styles.tripleRowActive]}>
+                    <View style={styles.tripleCol}>
+                        <View style={styles.tripleLabelRow}>
+                            <Image source={getIcon('heat', colors.mode)} style={styles.smallIcon} />
+                            <Text style={styles.tripleLabelText}>烤溫及時間</Text>
+                        </View>
+                        <TextInput
+                            style={styles.tripleInput}
+                            placeholder="請輸入烤溫及時間"
+                            placeholderTextColor={colors.gray}
+                            value={heatTimeText}
+                            onChangeText={setHeatTimeText}
+                        />
+                    </View>
+
+                    <View style={styles.tripleCol}>
+                        <View style={styles.tripleLabelRow}>
+                            <Image source={getIcon('star', colors.mode)} style={styles.smallIcon} />
+                            <Text style={styles.tripleLabelText}>滿意度</Text>
+                        </View>
+                        <View style={styles.starsRow}>
+                            {Array.from({ length: MAX_SATISFACTION }, (_, index) => {
+                                const starValue = index + 1;
+                                const isFilled = starValue <= satisfaction;
+                                return (
+                                    <TouchableOpacity key={starValue} onPress={() => setSatisfaction(starValue)}>
+                                        <Text style={[styles.starText, isFilled ? styles.starFilled : styles.starEmpty]}>
+                                            {isFilled ? '★' : '☆'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    <View style={[styles.tripleCol, styles.tripleColLast]}>
+                        <View style={styles.tripleLabelRow}>
+                            <Image source={getIcon('label', colors.mode)} style={styles.smallIcon} />
+                            <Text style={styles.tripleLabelText}>標籤</Text>
+                        </View>
+                        <View style={styles.tagDropdownWrap}>
                             <TouchableOpacity
-                                style={styles.dropdownTrigger}
+                                style={styles.tagDropdownTrigger}
                                 onPress={() => setShowCategoryOptions((prev) => !prev)}
                             >
                                 <Text style={styles.dropdownText}>{category}</Text>
@@ -373,344 +507,341 @@ export default function BakingRecordScreen() {
                     </View>
                 </View>
 
-                <FormItem
-                    iconSource={require('../img/note.png')}
-                    label="備註"
-                    placeholder="請輸入備註"
-                    value={noteText}
-                    onChangeText={setNoteText}
-                    multiline
-                />
-
-                <View style={[styles.formItemStack, showPermissionOptions && styles.formItemStackActive]}>
-                    <View style={[styles.formItem, styles.formItemInStack]}>
-                        <View style={styles.labelContainer}>
-                            <Image source={require('../img/lock.png')} style={styles.formIcon} />
-                            <Text style={styles.labelText}>權限 |</Text>
-                        </View>
-                        <View style={styles.dropdownWrap}>
-                            <TouchableOpacity
-                                style={styles.dropdownTrigger}
-                                onPress={() => setShowPermissionOptions((prev) => !prev)}
-                            >
-                                <Text style={styles.dropdownText}>{permission}</Text>
-                                <Text style={styles.dropdownArrow}>{showPermissionOptions ? '▲' : '▼'}</Text>
-                            </TouchableOpacity>
-
-                            {showPermissionOptions && (
-                                <View style={styles.dropdownOptions}>
-                                    {['公開', '私人'].map((option) => (
-                                        <TouchableOpacity
-                                            key={option}
-                                            style={styles.dropdownOption}
-                                            onPress={() => {
-                                                setPermission(option);
-                                                setShowPermissionOptions(false);
-                                            }}
-                                        >
-                                            <Text style={styles.dropdownOptionText}>{option}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-                        </View>
+                {/* 權限 */}
+                <View style={[styles.permissionRow, showPermissionOptions && styles.permissionRowActive]}>
+                    <View style={[styles.tripleLabelRow, styles.permissionLabelRow]}>
+                        <Image source={getIcon('lock', colors.mode)} style={styles.smallIcon} />
+                        <Text style={styles.tripleLabelText}>權限</Text>
                     </View>
-                </View>
-
-                <View style={styles.formItemStack}>
-                    <View style={[styles.formItem, styles.formItemInStack]}>
-                        <View style={styles.labelContainer}>
-                            <Image source={require('../img/addphoto.png')} style={styles.formIcon} />
-                            <Text style={styles.labelText}>新增圖片 |</Text>
-                        </View>
-                        <TouchableOpacity style={styles.imageAddButton} onPress={pickImages}>
-                            <Text style={styles.imageAddButtonText}>選擇圖片 ({images.length}/{maxImages})</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {images.length > 0 && (
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={styles.imagePreviewScroll}
-                            contentContainerStyle={styles.imagePreviewContainer}
+                    <View style={styles.permissionDropdownWrap}>
+                        <TouchableOpacity
+                            style={styles.permissionDropdownTrigger}
+                            onPress={() => setShowPermissionOptions((prev) => !prev)}
                         >
-                            {images.map((item, index) => (
-                                <View key={`${item.id || item.uri || 'image'}-${index}`} style={styles.imageCard}>
-                                    <Image source={item.source} style={styles.previewImage} />
+                            <Text style={styles.dropdownText}>{permission}</Text>
+                            <Text style={styles.dropdownArrow}>{showPermissionOptions ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
+
+                        {showPermissionOptions && (
+                            <View style={styles.dropdownOptions}>
+                                {['公開', '私人'].map((option) => (
                                     <TouchableOpacity
-                                        style={styles.removeImageButton}
-                                        onPress={() => removeImage(index)}
+                                        key={option}
+                                        style={styles.dropdownOption}
+                                        onPress={() => {
+                                            setPermission(option);
+                                            setShowPermissionOptions(false);
+                                        }}
                                     >
-                                        <Text style={styles.removeImageText}>x</Text>
+                                        <Text style={styles.dropdownOptionText}>{option}</Text>
                                     </TouchableOpacity>
-                                </View>
-                            ))}
-                        </ScrollView>
-                    )}
+                                ))}
+                            </View>
+                        )}
+                    </View>
                 </View>
 
-                {/* 儲存按鈕 */}
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                    <Text style={styles.saveButtonText}>✓ 儲存</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                {/* 備註 */}
+                <View style={styles.noteRow}>
+                    <Image source={getIcon('edit', colors.mode)} style={styles.smallIcon} />
+                    <TextInput
+                        style={styles.noteInput}
+                        placeholder="請輸入備註"
+                        placeholderTextColor={colors.gray}
+                        value={noteText}
+                        onChangeText={setNoteText}
+                    />
+                </View>
 
-            {/* 底部導航 */}
-                  <View style={styles.navContainer}>
-                    <View style={styles.bottomNav}>
-                      <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/')}>
-                        <Image source={require('../img/home.png')} style={styles.icon} />
-                        <Text style={styles.navText}>首頁</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
-                        <Image source={require('../img/favorite.png')} style={styles.icon} />
-                        <Text style={styles.navText}>收藏</Text>
-                      </TouchableOpacity>
-            
-                      {/* 中間留空位給凸出來的按鈕 */}
-                      <View style={{ width: 80 }} />
-            
-                      {/* 右側兩個按鈕 */}
-                                            <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/diary')}>
-                        <Image source={require('../img/gallery.png')} style={styles.icon} />
-                        <Text style={styles.navText}>日誌本</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
-                        <Image source={require('../img/member.png')} style={styles.icon} />
-                        <Text style={styles.navText}>我的</Text>
-                      </TouchableOpacity>
-                    </View>
-            
-                    {/* 真正的中間大按鈕：使用絕對定位 */}
-                    <TouchableOpacity style={styles.plusButton} onPress={() => router.push('/record')}>
-                                            <Image source={require('../img/add.png')} style={styles.plusIcon} />
+                {/* 底部按鈕 */}
+                <View style={styles.bottomButtonsRow}>
+                    {!normalizedEditId && !normalizedDraftId && (
+                        <TouchableOpacity style={styles.draftButton} onPress={handleSaveDraft}>
+                            <Text style={styles.draftButtonText}>草稿箱</Text>
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                        <Text style={styles.saveButtonText}>✓ 儲存</Text>
                     </TouchableOpacity>
-                  </View>
+                </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.light, },
+const createStyles = (colors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.light },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16 },
     headerBackIcon: { width: 28, height: 28 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#5D4037', marginLeft: 8 },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.subtleText, marginLeft: 8 },
     content: { paddingHorizontal: 20 },
     contentContainer: { paddingBottom: 110 },
-    nameContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    namePrefix: { fontSize: 28, color: '#5D4037', marginRight: 8 },
-    nameInput: { fontSize: 24, fontWeight: 'bold', flex: 1 },
-    formItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    formItemMultiline: { alignItems: 'flex-start' },
-    formItemInStack: { marginBottom: 0 },
-    formItemRating: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    formItemStack: { marginBottom: 16 },
-    formItemStackActive: { zIndex: 30 },
-    formItemStackCategoryActive: { zIndex: 60 },
-    labelContainer: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
-    labelContainerMultiline: { marginTop: 8 },
-    labelContainerRating: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
-    formIcon: { width: 24, height: 24 },
-    labelText: { fontSize: 18, color: '#5D4037', marginLeft: 6, fontWeight: '600' },
-    input: {
-        flex: 1,
-        height: 34,
+
+    // 封面圖片
+    coverImageBox: {
+        width: '100%',
+        height: 180,
         borderWidth: 1,
-        borderColor: '#D7CCC8',
+        borderColor: colors.border,
+        borderRadius: 12,
+        marginBottom: 16,
+        overflow: 'hidden',
+        backgroundColor: colors.surfaceAlt,
+    },
+    coverImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    coverPlaceholder: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    
+    changePhotoButton: {
+        position: 'absolute',
+        right: 10,
+        bottom: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(93,64,55,0.85)',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    changePhotoIcon: { width: 16, height: 16, marginRight: 4, tintColor: 'white' },
+    changePhotoText: { color: 'white', fontSize: 13 },
+
+    // 名稱表單區塊優化
+    nameRow: {
+        flexDirection: 'column', // 改為垂直排列以釋放文字寬度
+        alignItems: 'flex-start',
+        marginBottom: 16,
+    },
+    nameLabel: {
+        fontSize: 16,
+        color: colors.subtleText,
+        fontWeight: '600',
+        marginBottom: 6, // 改為與下方的輸入框保持間距
+    },
+    nameInput: {
+        width: '100%',
+        height: 44, // 增加明確的高度，防止 Placeholder 文字上下被遮蓋
+        fontSize: 16,
+        color: colors.inputText,
+        borderBottomWidth: 1, // 改為底線樣式，更有輸入框的視覺感
+        borderBottomColor: colors.border,
+        paddingVertical: 0,
+        paddingHorizontal: 4,
+        textAlignVertical: 'center',
+        includeFontPadding: false,
+    },
+
+    // 區塊（食材／作法）
+    sectionBlock: { marginBottom: 16 },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center' },
+    sectionIcon: { width: 22, height: 22, marginRight: 6 },
+    sectionTitleText: { fontSize: 18, fontWeight: '600', color: colors.subtleText },
+    addLink: { fontSize: 14, color: colors.accentOrange, fontWeight: '600' },
+
+    listRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    dragHandle: { fontSize: 16, color: colors.gray, marginRight: 8 },
+    listInput: {
+        flex: 1,
+        height: 38,
+        borderWidth: 1,
+        borderColor: colors.border,
         borderRadius: 8,
         paddingHorizontal: 10,
-        backgroundColor: '#FFF7EB',
+        paddingVertical: 0,
+        backgroundColor: colors.surfaceAlt,
+        color: colors.inputText,
+        textAlignVertical: 'center',
+        includeFontPadding: false,
     },
-    inputMultiline: {
-        minHeight: 34,
-        maxHeight: 70,
-        lineHeight: 18,
-        paddingTop: 8,
-        paddingBottom: 8,
+    stepNumberCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: colors.dark,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    stepNumberText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
+    stepImageButton: {
+        width: 38,
+        height: 38,
+        marginLeft: 8,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 8,
+        backgroundColor: colors.surfaceAlt,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    stepImageIcon: { width: 20, height: 20 },
+    stepImageThumb: { width: '100%', height: '100%' },
+    rowDeleteButton: { marginLeft: 8, padding: 4 },
+    rowDeleteIcon: { width: 18, height: 18 },
+
+    // 三欄列：烤溫及時間 / 滿意度 / 標籤
+    tripleRow: {
+        flexDirection: 'row',
+        marginBottom: 16,
+    },
+    tripleRowActive: { zIndex: 50 },
+    tripleCol: { flex: 1, marginRight: 10 },
+    tripleColLast: { marginRight: 0 },
+    tripleLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    smallIcon: { width: 18, height: 18, marginRight: 4 },
+    tripleLabelText: { fontSize: 13, color: colors.subtleText, fontWeight: '600' },
+    tripleInput: {
+        height: 34,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 0,
+        backgroundColor: colors.surfaceAlt,
+        color: colors.inputText,
+        fontSize: 11,
+        textAlignVertical: 'center',
+        includeFontPadding: false,
     },
     starsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        flex: 1,
-        flexWrap: 'nowrap',
         justifyContent: 'space-between',
+        height: 34,
     },
-    starButton: {
-        flex: 1,
+    starText: { fontSize: 18 },
+    starFilled: { color: colors.accentOrange },
+    starEmpty: { color: colors.gray },
+
+    // 權限
+    permissionRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 16,
     },
-    starText: {
-        fontSize: 20,
+    permissionRowActive: { zIndex: 40 },
+    permissionLabelRow: { marginBottom: 0 },
+    permissionDropdownWrap: {
+        position: 'relative',
+        zIndex: 40,
+        width: 120,
+        marginLeft: 24,
     },
-    starFilled: {
-        color: '#F5A623',
-    },
-    starEmpty: {
-        color: '#B0A9A5',
-    },
-    dropdownTrigger: {
-        minWidth: 90,
-        maxWidth: 110,
+    permissionDropdownTrigger: {
+        width: '100%',
         height: 34,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 10,
         borderWidth: 1,
-        borderColor: '#D7CCC8',
+        borderColor: colors.border,
         borderRadius: 10,
-        backgroundColor: '#FFF7EB',
+        backgroundColor: colors.surfaceAlt,
     },
-    dropdownWrap: {
+
+    // 下拉選單
+    tagDropdownWrap: {
         position: 'relative',
-        alignSelf: 'flex-start',
+        width: '100%',
         zIndex: 40,
     },
-    dropdownText: {
-        fontSize: 14,
-        color: '#5D4037',
+    tagDropdownTrigger: {
+        width: '100%',
+        height: 34,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 10,
+        backgroundColor: colors.surfaceAlt,
     },
-    dropdownArrow: {
-        fontSize: 10,
-        color: '#5D4037',
-    },
+    dropdownText: { fontSize: 14, color: colors.subtleText },
+    dropdownArrow: { fontSize: 10, color: colors.subtleText },
     dropdownOptions: {
         position: 'absolute',
         top: '100%',
         left: 0,
         marginTop: 4,
         borderWidth: 1,
-        borderColor: '#D7CCC8',
+        borderColor: colors.border,
         borderRadius: 8,
-        backgroundColor: '#FFF7EB',
+        backgroundColor: colors.surfaceAlt,
         overflow: 'hidden',
-        width: 110,
+        width: 120,
         zIndex: 50,
         elevation: 3,
     },
     dropdownOptionsCategory: {
         position: 'absolute',
         top: '100%',
-        left: 0,
+        right: 0,
         marginTop: 4,
         borderWidth: 1,
-        borderColor: '#D7CCC8',
+        borderColor: colors.border,
         borderRadius: 8,
-        backgroundColor: '#FFF7EB',
+        backgroundColor: colors.surfaceAlt,
         overflow: 'hidden',
         width: 120,
         zIndex: 70,
         elevation: 5,
     },
-    dropdownOption: {
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+    dropdownOption: { paddingVertical: 10, paddingHorizontal: 12 },
+    dropdownOptionText: { color: colors.subtleText, fontSize: 16 },
+
+    // 備註
+    noteRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        height: 38,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        backgroundColor: colors.surfaceAlt,
     },
-    dropdownOptionText: {
-        color: '#5D4037',
-        fontSize: 16,
+    noteInput: {
+        flex: 1,
+        height: '100%',
+        marginLeft: 8,
+        fontSize: 14,
+        color: colors.inputText,
+        paddingVertical: 0,
+        textAlignVertical: 'center',
+        includeFontPadding: false,
     },
-    imageAddButton: {
+
+    // 底部按鈕
+    bottomButtonsRow: {
+        flexDirection: 'row',
+        marginTop: 24,
+        marginHorizontal: 20,
+    },
+    draftButton: {
         flex: 1,
         borderWidth: 1,
-        borderColor: '#D7CCC8',
-        borderRadius: 10,
-        minHeight: 40,
-        justifyContent: 'center',
-        paddingHorizontal: 12,
-        backgroundColor: '#FFF7EB',
-    },
-    imageAddButtonText: {
-        color: '#5D4037',
-        fontSize: 15,
-    },
-    imagePreviewScroll: {
-        marginLeft: 140,
-        marginTop: 4,
-    },
-    imagePreviewContainer: {
-        paddingTop: 8,
-        paddingBottom: 4,
-        paddingRight: 8,
-    },
-    imageCard: {
-        position: 'relative',
-        marginRight: 10,
-    },
-    previewImage: {
-        width: 78,
-        height: 78,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#D7CCC8',
-    },
-    removeImageButton: {
-        position: 'absolute',
-        right: 4,
-        top: 4,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: '#212121',
-        justifyContent: 'center',
+        borderColor: colors.text,
+        borderRadius: 30,
+        paddingVertical: 15,
         alignItems: 'center',
+        marginRight: 12,
     },
-    removeImageText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        lineHeight: 14,
-    },
+    draftButtonText: { color: colors.text, fontSize: 16, fontWeight: 'bold' },
     saveButton: {
+        flex: 1,
         backgroundColor: colors.text,
         borderRadius: 30,
         paddingVertical: 15,
         alignItems: 'center',
-        marginTop: 40,
-        marginHorizontal: 40
     },
-    saveButtonText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    navContainer: {
-        alignItems: 'center',
-        position: 'absolute',
-        bottom: 0,
-        width: '100%',
-    },
-    bottomNav: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: colors.dark,
-        paddingVertical: 12,
-        paddingHorizontal: 15,
-        width: '100%',
-        height: 70,
-    },
-    navItem: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    navText: {
-        color: 'white',
-        fontSize: 12,
-        marginTop: 4,
-    },
-    icon: {
-        width: 24,
-        height: 24,
-    },
-    plusButton: {
-        position: 'absolute',
-        top: -25,
-        backgroundColor: colors.black,
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    plusIcon: {
-        width: 30,
-        height: 30,
-    },
+    saveButtonText: { color: colors.mode === 'dark' ? '#000000' : '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
 });

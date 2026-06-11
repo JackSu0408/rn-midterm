@@ -1,24 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dimensions, StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { Alert, Dimensions, Modal, StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRecipeStore } from '../store/recipeStore';
-
-const colors = {
-  light: '#FFE1AF',
-  mid: '#E2B59A',
-  dark: '#B77466',
-  text: '#693F27',
-  black: '#212121',
-};
+import { useThemeColors } from '../store/themeStore';
+import { getIcon } from '../utils/icons';
+import AnimatedHeartButton from '../components/AnimatedHeartButton';
 
 export default function BakingDetailScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
+    const styles = createStyles(colors);
     const { id, from, diaryId, title } = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState('摘要');
-    const [isFavorite, setIsFavorite] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [previewImage, setPreviewImage] = useState(null);
     const recipe = useRecipeStore((state) => state.getRecipeById(id));
+    const isFavorite = useRecipeStore((state) => state.favorites.includes(String(recipe?.id)));
+    const toggleFavorite = useRecipeStore((state) => state.toggleFavorite);
     const screenWidth = Dimensions.get('window').width;
     const detailImages = useMemo(() => {
         if (Array.isArray(recipe?.images) && recipe.images.length > 0) {
@@ -29,8 +28,13 @@ export default function BakingDetailScreen() {
         }
         return [];
     }, [recipe]);
-    const satisfactionValue = Number.parseInt(String(recipe?.satisfaction || '0'), 10) || 0;
-    const totalStars = 10;
+    const MAX_STARS = 5;
+    const rawSatisfaction = Number.parseInt(String(recipe?.satisfaction || '0'), 10) || 0;
+    // 舊資料以 10 顆星為基準，換算成統一的 5 顆星顯示
+    const satisfactionValue = rawSatisfaction > MAX_STARS
+        ? Math.round((rawSatisfaction / 10) * MAX_STARS)
+        : rawSatisfaction;
+    const totalStars = MAX_STARS;
     const displayNote = (recipe?.note || '')
         .split('\n')
         .filter((line) => line && !line.startsWith('分類：') && !line.startsWith('權限：'))
@@ -40,6 +44,24 @@ export default function BakingDetailScreen() {
     useEffect(() => {
         setCurrentImageIndex(0);
     }, [id]);
+
+    if (!recipe) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+                            <Image source={getIcon('back', colors.mode)} style={styles.headerIcon} />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>找不到食譜</Text>
+                    </View>
+                </View>
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>這個食譜不存在或已被刪除。</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const handleEditPress = () => {
         const recipeId = Array.isArray(id) ? id[0] : id;
@@ -64,6 +86,11 @@ export default function BakingDetailScreen() {
             return;
         }
 
+        if (router.canGoBack()) {
+            router.back();
+            return;
+        }
+
         router.replace('/');
     };
 
@@ -73,22 +100,22 @@ export default function BakingDetailScreen() {
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={handleBackPress}>
-                        <Image source={require('../img/back.png')} style={styles.headerIcon} />
+                        <Image source={getIcon('back', colors.mode)} style={styles.headerIcon} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{recipe.title}</Text>
                 </View>
                 <View style={styles.headerIcons}>
                     <TouchableOpacity style={styles.headerIconButton} onPress={handleEditPress}>
-                        <Image source={require('../img/edit.png')} style={[styles.headerIcon, styles.editHeaderIcon]} />
+                        <Image source={getIcon('edit', colors.mode)} style={styles.headerIcon} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIconButton} onPress={() => setIsFavorite((prev) => !prev)}>
-                        <Image
-                            source={isFavorite ? require('../img/love.png') : require('../img/save.png')}
-                            style={styles.headerIcon}
-                        />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIconButton}>
-                        <Image source={require('../img/share.png')} style={styles.headerIcon} />
+                    <AnimatedHeartButton
+                        style={styles.headerIconButton}
+                        isFavorite={isFavorite}
+                        onPress={() => toggleFavorite(recipe.id)}
+                        iconStyle={styles.headerIcon}
+                    />
+                    <TouchableOpacity style={styles.headerIconButton} onPress={() => Alert.alert('分享', '分享功能尚未開放。')}>
+                        <Image source={getIcon('share', colors.mode)} style={styles.headerIcon} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -163,47 +190,66 @@ export default function BakingDetailScreen() {
                     </View>
 
                     {/* 摘要 Section */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>摘要</Text>
-                        <View style={styles.satisfactionRow}>
-                            <Text style={styles.infoText}>滿意度：</Text>
-                            <View style={styles.satisfactionStars}>
-                                {Array.from({ length: totalStars }, (_, index) => {
-                                    const starValue = index + 1;
-                                    const isFilled = starValue <= satisfactionValue;
-                                    return (
-                                        <Text
-                                            key={`detail-star-${starValue}`}
-                                            style={[styles.satisfactionStar, isFilled ? styles.starFilled : styles.starEmpty]}
-                                        >
-                                            {isFilled ? '★' : '☆'}
-                                        </Text>
-                                    );
-                                })}
+                    {activeTab === '摘要' && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>摘要</Text>
+                            <View style={styles.satisfactionRow}>
+                                <Text style={styles.infoText}>滿意度：</Text>
+                                <View style={styles.satisfactionStars}>
+                                    {Array.from({ length: totalStars }, (_, index) => {
+                                        const starValue = index + 1;
+                                        const isFilled = starValue <= satisfactionValue;
+                                        return (
+                                            <Text
+                                                key={`detail-star-${starValue}`}
+                                                style={[styles.satisfactionStar, isFilled ? styles.starFilled : styles.starEmpty]}
+                                            >
+                                                {isFilled ? '★' : '☆'}
+                                            </Text>
+                                        );
+                                    })}
+                                </View>
                             </View>
+                            <Text style={styles.infoText}>備註：{displayNote || '未填寫備註'}</Text>
+                            <Text style={styles.dateText}>{recipe.date}</Text>
                         </View>
-                        <Text style={styles.infoText}>備註：{displayNote || '未填寫備註'}</Text>
-                        <Text style={styles.dateText}>{recipe.date}</Text>
-                    </View>
+                    )}
 
                     {/* 食材 Section */}
-                    <View style={[styles.section, styles.borderTop]}>
-                        <Text style={styles.sectionTitle}>食材</Text>
-                        {recipe.ingredients.map((item, index) => (
-                            <View key={index} style={styles.listItem}>
-                                <View style={styles.dot} />
-                                <Text style={styles.listText}>{item.name}  {item.amount}</Text>
-                            </View>
-                        ))}
-                    </View>
+                    {activeTab === '食材' && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>食材</Text>
+                            {recipe.ingredients.map((item, index) => (
+                                <View key={index} style={styles.listItem}>
+                                    <View style={styles.dot} />
+                                    <Text style={styles.listText}>{item.name}  {item.amount}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
 
                     {/* 作法 Section */}
-                    <View style={[styles.section, styles.borderTop]}>
-                        <Text style={styles.sectionTitle}>作法</Text>
-                        {recipe.steps.map((step, index) => (
-                            <Text key={index} style={styles.listText}>{index + 1}. {step}</Text>
-                        ))}
-                    </View>
+                    {activeTab === '作法' && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>作法</Text>
+                            {recipe.steps.map((step, index) => {
+                                const stepImage = recipe.stepImages?.[index];
+                                const stepImageSource = stepImage
+                                    ? (typeof stepImage === 'number' ? stepImage : { uri: stepImage.uri })
+                                    : null;
+                                return (
+                                    <View key={index} style={styles.stepRow}>
+                                        <Text style={styles.listText}>{index + 1}. {step}</Text>
+                                        {stepImageSource && (
+                                            <TouchableOpacity onPress={() => setPreviewImage(stepImageSource)}>
+                                                <Image source={stepImageSource} style={styles.stepImage} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
                 </View>
             </ScrollView>
 
@@ -211,32 +257,45 @@ export default function BakingDetailScreen() {
             <View style={styles.navContainer}>
                 <View style={styles.bottomNav}>
                     <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/')}>
-                        <Image source={require('../img/home.png')} style={styles.navIcon} />
+                        <Image source={getIcon('home', colors.mode)} style={styles.navIcon} />
                         <Text style={styles.navText}>首頁</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/favorite')}>
-                        <Image source={require('../img/favorite.png')} style={styles.navIcon} />
+                        <Image source={getIcon('favorite', colors.mode)} style={styles.navIcon} />
                         <Text style={styles.navText}>收藏</Text>
                     </TouchableOpacity>
                     <View style={{ width: 80 }} />
                     <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/diary')}>
-                        <Image source={require('../img/gallery.png')} style={styles.navIcon} />
+                        <Image source={getIcon('gallery', colors.mode)} style={styles.navIcon} />
                         <Text style={styles.navText}>日誌本</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/member')}>
-                        <Image source={require('../img/member.png')} style={styles.navIcon} />
+                        <Image source={getIcon('profile', colors.mode)} style={styles.navIcon} />
                         <Text style={styles.navText}>我的</Text>
                     </TouchableOpacity>
                 </View>
                 <TouchableOpacity style={styles.plusButton} onPress={() => router.push('/record')}>
-                    <Image source={require('../img/add.png')} style={styles.plusIcon} />
+                    <Image source={getIcon('add', 'dark')} style={styles.plusIcon} />
                 </TouchableOpacity>
             </View>
+
+            {/* 作法圖片預覽 Modal */}
+            <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+                <TouchableOpacity
+                    style={styles.previewOverlay}
+                    activeOpacity={1}
+                    onPress={() => setPreviewImage(null)}
+                >
+                    {previewImage && (
+                        <Image source={previewImage} style={styles.previewImage} resizeMode="contain" />
+                    )}
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.light },
     scrollContent: { paddingBottom: 110 },
     header: {
@@ -245,6 +304,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
     },
+    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+    emptyText: { fontSize: 16, color: colors.subtleText, textAlign: 'center' },
     headerLeft: { flexDirection: 'row', alignItems: 'center' },
     headerIcon: { width: 28, height: 28 },
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.text, marginLeft: 8 },
@@ -256,7 +317,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginLeft: 2,
     },
-    editHeaderIcon: { tintColor: colors.dark },
     imagePlaceholder: {
         height: 250,
         backgroundColor: colors.light,
@@ -266,12 +326,12 @@ const styles = StyleSheet.create({
     noImageBox: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#D9D9D9',
+        backgroundColor: colors.placeholder,
         justifyContent: 'center',
         alignItems: 'center',
     },
     noImageText: {
-        color: '#5D4037',
+        color: colors.subtleText,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -306,7 +366,7 @@ const styles = StyleSheet.create({
     },
     tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
     activeTabButton: { borderBottomWidth: 0 },
-    tabText: { fontSize: 16, color: '#8D6E63' },
+    tabText: { fontSize: 16, color: colors.muted },
     activeTabText: { color: colors.mid, fontWeight: 'bold' },
     contentSection: { padding: 20 },
     userRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
@@ -317,14 +377,31 @@ const styles = StyleSheet.create({
     satisfactionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' },
     satisfactionStars: { flexDirection: 'row', alignItems: 'center' },
     satisfactionStar: { fontSize: 18, marginRight: 1 },
-    starFilled: { color: '#F5A623' },
-    starEmpty: { color: '#B0A9A5' },
-    infoText: { fontSize: 16, color: '#3E2723', marginBottom: 5 },
-    dateText: { fontSize: 12, color: '#8D6E63', marginTop: 5 },
-    borderTop: { borderTopWidth: 1, borderTopColor: colors.dark, paddingTop: 20 },
+    starFilled: { color: colors.accentOrange },
+    starEmpty: { color: colors.gray },
+    infoText: { fontSize: 16, color: colors.deepText, marginBottom: 5 },
+    dateText: { fontSize: 12, color: colors.muted, marginTop: 5 },
     listItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: colors.text, marginRight: 10 },
-    listText: { fontSize: 16, color: '#3E2723' },
+    listText: { fontSize: 16, color: colors.deepText },
+    stepRow: { marginBottom: 12 },
+    stepImage: {
+        width: '100%',
+        height: 160,
+        borderRadius: 8,
+        marginTop: 8,
+        resizeMode: 'cover',
+    },
+    previewOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+    },
     // Bottom Nav Styles
     navContainer: {
         alignItems: 'center',
@@ -348,7 +425,7 @@ const styles = StyleSheet.create({
     plusButton: {
         position: 'absolute',
         top: -25,
-        backgroundColor: colors.black,
+        backgroundColor: colors.fab,
         width: 50,
         height: 50,
         borderRadius: 25,

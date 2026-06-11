@@ -16,6 +16,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+/android/
+/ios/
 
 # Metro
 .metro-health-check*
@@ -24,6 +26,10 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
 
 # macOS
 .DS_Store
