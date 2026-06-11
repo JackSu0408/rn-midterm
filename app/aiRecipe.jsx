@@ -131,7 +131,7 @@ export default function AiRecipeScreen() {
                 <TouchableOpacity onPress={handleBack}>
                     <Image source={getIcon('back', colors.mode)} style={styles.headerBackIcon} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>AI 食譜生成（測試版）</Text>
+                <Text style={styles.headerTitle}>AI 食譜生成</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
